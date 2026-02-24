@@ -1,12 +1,18 @@
 // ── Role Model ──────────────────────────────────────────────
-export type Role = 'viewer' | 'editor' | 'admin';
+export type Role = "viewer" | "editor" | "admin";
 
 // ── Transaction ─────────────────────────────────────────────
-export type TransactionStatus = 'pending' | 'routed' | 'confirmed' | 'paid';
+export type TransactionStatus =
+  | "pending_collection"
+  | "pending_payout"
+  | "routed"
+  | "confirmed"
+  | "paid";
 
 export interface Transaction {
   id: string;
   clientName: string;
+  senderName: string;
   sourceCountry: string;
   beneficiaryName: string;
   beneficiaryCountry: string;
@@ -22,9 +28,10 @@ export interface Transaction {
   routedBy: string | null;
   routedAt: string | null;
   notes: string | null;
+  swiftCode: string | null;
 }
 
-// ── Balance ─────────────────────────────────────────────────
+// ── Balance (DB_Accounts) ───────────────────────────────────
 export interface Balance {
   provider: string;
   currency: string;
@@ -33,13 +40,21 @@ export interface Balance {
   lastUpdated: string;
 }
 
-// ── Provider ────────────────────────────────────────────────
-export interface Corridor {
-  senderCountry: string;
-  beneficiaryCountry: string;
+// ── Provider matrices ───────────────────────────────────────
+export interface SenderCountryEntry {
+  provider: string;
+  country: string;
+  approved: boolean;
+}
+
+export interface ReceiverCountryEntry {
+  provider: string;
+  country: string;
+  approved: boolean;
 }
 
 export interface CurrencyRail {
+  provider: string;
   currency: string;
   rail: string;
   isPobo: boolean;
@@ -49,13 +64,29 @@ export interface CurrencyRail {
   cutoffTimezone: string;
 }
 
-export interface Provider {
-  id: string;
-  name: string;
-  corridors: Corridor[];
-  currencyRails: CurrencyRail[];
-  bannedSenderCountries: string[];
-  blockedIndustryTags: string[];
+// ── Banned lists ────────────────────────────────────────────
+export interface BeneBanned {
+  beneficiaryName: string;
+  provider: string;
+  reason: string | null;
+}
+
+export interface SenderBanned {
+  senderName: string;
+  provider: string;
+  reason: string | null;
+}
+
+export interface SwiftCodeBanned {
+  swiftCode: string;
+  provider: string;
+  reason: string | null;
+}
+
+// ── Light KYC senders ───────────────────────────────────────
+export interface LightKycSender {
+  senderName: string;
+  restrictedToProvider: string; // currently "GIB"
 }
 
 // ── Routing ─────────────────────────────────────────────────
@@ -66,16 +97,12 @@ export interface RoutingRule {
   daysAfterCollection: number;
 }
 
-export interface BeneficiaryIndustry {
-  beneficiaryName: string;
-  industryTag: string;
-}
-
 export interface FlowTarget {
   provider: string;
-  targetPct: number;
+  targetPct: number | null;
 }
 
+// ── Routing Decision ────────────────────────────────────────
 export interface RoutingDecision {
   transactionId: string;
   assignedProvider: string;
@@ -87,28 +114,13 @@ export interface RoutingDecision {
 }
 
 export interface RoutingSuggestion {
-  provider: Provider;
+  provider: string;
   rail: string;
   isPobo: boolean;
   score: number;
   balanceSufficient: boolean;
   availableTomorrow: boolean;
   flaggedReasons: string[];
-}
-
-// ── Fund Movement ───────────────────────────────────────────
-export interface FundMovementSuggestion {
-  type: 'transfer' | 'fx' | 'preposition';
-  fromProvider: string;
-  toProvider: string;
-  fromCurrency: string;
-  toCurrency: string;
-  amount: number;
-  fxRateUsed?: number;
-  deadline: string;
-  deadlineTimezone: string;
-  urgency: 'today' | 'tomorrow';
-  affectedTransactionCount: number;
 }
 
 // ── Audit ───────────────────────────────────────────────────
@@ -120,17 +132,4 @@ export interface AuditEntry {
   oldValue: string;
   newValue: string;
   note: string | null;
-}
-
-// ── Data Source Interface ───────────────────────────────────
-export interface DataSource {
-  getConfirmedTransactions(): Promise<Transaction[]>;
-  getPipelineTransactions(): Promise<Transaction[]>;
-  getBalances(): Promise<Balance[]>;
-  getProviderCapabilities(): Promise<Provider[]>;
-  getRoutingRules(): Promise<RoutingRule[]>;
-  getBeneficiaryIndustries(): Promise<BeneficiaryIndustry[]>;
-  getFlowTargets(): Promise<FlowTarget[]>;
-  writeRoutingDecisions(decisions: RoutingDecision[]): Promise<void>;
-  writeAuditLog(entry: AuditEntry): Promise<void>;
 }

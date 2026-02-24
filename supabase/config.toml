@@ -1,1 +1,4 @@
 project_id = "izbuncvxkyxpfpvawzwa"
+
+[functions.sheets-proxy]
+verify_jwt = false
