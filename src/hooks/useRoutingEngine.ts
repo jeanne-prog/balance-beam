@@ -111,6 +111,8 @@ export function useRoutingEngine() {
     pendingPayouts,
     /** Map of transactionId → ranked RoutingSuggestion[] */
     suggestions: results,
+    /** Provider account balances */
+    balances: balances.data ?? [],
     isLoading,
     error,
   };
