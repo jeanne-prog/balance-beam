@@ -8,6 +8,8 @@ import type { Balance } from "@/types";
 interface Props {
   balances: Balance[];
   routingProviders: Set<string>;
+  /** Allocated amounts per "PROVIDER|CURRENCY" key */
+  allocated: Map<string, number>;
   isLoading: boolean;
 }
 
@@ -25,7 +27,7 @@ interface ProviderGroup {
   totalUsd: number;
 }
 
-export function BalanceCards({ balances, routingProviders, isLoading }: Props) {
+export function BalanceCards({ balances, routingProviders, allocated, isLoading }: Props) {
   const grouped = useMemo<ProviderGroup[]>(() => {
     const map = new Map<string, { currency: string; balance: number }[]>();
     for (const b of balances) {
@@ -68,15 +70,41 @@ export function BalanceCards({ balances, routingProviders, isLoading }: Props) {
               <ProviderBadge provider={provider} />
             </CardHeader>
             <CardContent className="px-4 pb-3 pt-0">
-              <div className="space-y-1">
-                {currencies.map(({ currency, balance }) => (
-                  <div key={currency} className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground text-xs">{currency}</span>
-                    <span className={`font-mono-numbers text-xs font-medium ${balance <= 0 ? "text-[hsl(var(--status-danger))]" : ""}`}>
-                      {formatCurrency(balance, currency)}
-                    </span>
-                  </div>
-                ))}
+              <div className="space-y-1.5">
+                {currencies.map(({ currency, balance }) => {
+                  const allocKey = `${provider}|${currency.toUpperCase()}`;
+                  const allocAmt = allocated.get(allocKey) ?? 0;
+                  const remaining = balance - allocAmt;
+                  const isShort = allocAmt > 0 && remaining < 0;
+                  return (
+                    <div key={currency} className="space-y-0.5">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground text-xs">{currency}</span>
+                        <span className={`font-mono-numbers text-xs font-medium ${balance <= 0 ? "text-[hsl(var(--status-danger))]" : ""}`}>
+                          {formatCurrency(balance, currency)}
+                        </span>
+                      </div>
+                      {allocAmt > 0 && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Allocated</span>
+                          <span className="font-mono-numbers text-muted-foreground">
+                            {formatCurrency(allocAmt, currency)}
+                          </span>
+                        </div>
+                      )}
+                      {allocAmt > 0 && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className={isShort ? "text-[hsl(var(--status-danger))] font-medium" : "text-muted-foreground"}>
+                            Remaining
+                          </span>
+                          <span className={`font-mono-numbers font-medium ${isShort ? "text-[hsl(var(--status-danger))]" : "text-[hsl(var(--status-positive))]"}`}>
+                            {formatCurrency(remaining, currency)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
