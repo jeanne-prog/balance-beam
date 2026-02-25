@@ -106,6 +106,12 @@ export function useRoutingEngine() {
     pendingPayouts,
   ]);
 
+  /** Set of provider IDs from currencies matrix (uppercase) */
+  const routingProviders = useMemo(() => {
+    if (!currencies.data) return new Set<string>();
+    return new Set(currencies.data.map((cr) => cr.provider.toUpperCase()));
+  }, [currencies.data]);
+
   return {
     /** Transactions with status=pending_payout */
     pendingPayouts,
@@ -113,6 +119,8 @@ export function useRoutingEngine() {
     suggestions: results,
     /** Provider account balances */
     balances: balances.data ?? [],
+    /** Providers from currencies matrix */
+    routingProviders,
     isLoading,
     error,
   };

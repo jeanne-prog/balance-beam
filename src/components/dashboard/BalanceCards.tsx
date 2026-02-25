@@ -7,6 +7,7 @@ import type { Balance } from "@/types";
 
 interface Props {
   balances: Balance[];
+  routingProviders: Set<string>;
   isLoading: boolean;
 }
 
@@ -24,11 +25,12 @@ interface ProviderGroup {
   totalUsd: number;
 }
 
-export function BalanceCards({ balances, isLoading }: Props) {
+export function BalanceCards({ balances, routingProviders, isLoading }: Props) {
   const grouped = useMemo<ProviderGroup[]>(() => {
     const map = new Map<string, { currency: string; balance: number }[]>();
     for (const b of balances) {
       const key = b.provider.toUpperCase();
+      if (!routingProviders.has(key)) continue;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push({ currency: b.currency, balance: b.currentBalance });
     }
@@ -36,10 +38,10 @@ export function BalanceCards({ balances, isLoading }: Props) {
       .map(([provider, currencies]) => ({
         provider,
         currencies: currencies.sort((a, b) => b.balance - a.balance),
-        totalUsd: currencies.reduce((s, c) => s + c.balance, 0), // approximate
+        totalUsd: currencies.reduce((s, c) => s + c.balance, 0),
       }))
       .sort((a, b) => a.provider.localeCompare(b.provider));
-  }, [balances]);
+  }, [balances, routingProviders]);
 
   if (isLoading) {
     return (
