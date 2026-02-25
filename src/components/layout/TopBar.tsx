@@ -1,8 +1,11 @@
 import { RefreshCw, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 export function TopBar() {
+  const { user, role, signOut } = useAuthContext();
+
   const today = new Date().toLocaleDateString("en-GB", {
     weekday: "long",
     year: "numeric",
@@ -24,11 +27,20 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-3">
-        <Badge variant="outline" className="text-xs font-mono">
-          editor
-        </Badge>
-        <span className="text-sm text-topbar-foreground">User</span>
-        <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs text-muted-foreground">
+        {role && (
+          <Badge variant="outline" className="text-xs font-mono">
+            {role}
+          </Badge>
+        )}
+        <span className="text-sm text-topbar-foreground">
+          {user?.user_metadata?.full_name || user?.email || "User"}
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1.5 text-xs text-muted-foreground"
+          onClick={signOut}
+        >
           <LogOut className="w-3 h-3" />
           Sign out
         </Button>

@@ -1,9 +1,8 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Clock,
   FileText,
-  Settings,
   Network,
   Scale,
   Users,
@@ -11,7 +10,10 @@ import {
   Building2,
   ArrowRightLeft,
   SlidersHorizontal,
+  Lock,
 } from "lucide-react";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const mainNav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -30,11 +32,17 @@ const adminNav = [
 
 export function AppSidebar() {
   const location = useLocation();
+  const { role } = useAuthContext();
 
-  const linkClass = (path: string) => {
+  const isAdmin = role === "admin";
+  const canAccessAdmin = role === "admin" || role === "editor";
+
+  const linkClass = (path: string, disabled?: boolean) => {
     const active = location.pathname === path;
     return `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
-      active
+      disabled
+        ? "text-sidebar-foreground/30 cursor-not-allowed"
+        : active
         ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
         : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
     }`;
@@ -65,12 +73,36 @@ export function AppSidebar() {
           <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/50">
             Admin
           </p>
-          {adminNav.map((item) => (
-            <NavLink key={item.to} to={item.to} className={linkClass(item.to)}>
-              <item.icon className="w-4 h-4" />
-              {item.label}
-            </NavLink>
-          ))}
+          {adminNav.map((item) => {
+            const disabled = !canAccessAdmin && item.to !== "/admin/users";
+            const isUsersPage = item.to === "/admin/users";
+            const disableUsers = isUsersPage && !isAdmin;
+            const isDisabled = disabled || disableUsers;
+
+            if (isDisabled) {
+              return (
+                <Tooltip key={item.to}>
+                  <TooltipTrigger asChild>
+                    <span className={linkClass(item.to, true)}>
+                      <item.icon className="w-4 h-4" />
+                      {item.label}
+                      <Lock className="w-3 h-3 ml-auto" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    {isUsersPage ? "Admin only" : "Editor or Admin role required"}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            }
+
+            return (
+              <NavLink key={item.to} to={item.to} className={linkClass(item.to)}>
+                <item.icon className="w-4 h-4" />
+                {item.label}
+              </NavLink>
+            );
+          })}
         </div>
       </nav>
 
