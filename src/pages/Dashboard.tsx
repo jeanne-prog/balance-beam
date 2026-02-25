@@ -10,24 +10,44 @@ import { Card, CardContent } from "@/components/ui/card";
 
 const Dashboard = () => {
   const [releasedIds, setReleasedIds] = useState<Set<string>>(new Set());
+  /** Manual overrides: transactionId → "PROVIDER|RAIL" */
+  const [overrides, setOverrides] = useState<Map<string, string>>(new Map());
   const handleRelease = useCallback((txId: string) => {
     setReleasedIds((prev) => new Set(prev).add(txId));
   }, []);
+  const handleOverride = useCallback((txId: string, value: string) => {
+    setOverrides((prev) => {
+      const next = new Map(prev);
+      if (value === "__recommended") {
+        next.delete(txId);
+      } else {
+        next.set(txId, value);
+      }
+      return next;
+    });
+  }, []);
   const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, routingProviders, flowTargetProgress, fundMovements, routingRules, isLoading, error } = useRoutingEngine(releasedIds);
 
-  /** Compute allocated amounts per provider+currency from top suggestions */
+  /** Compute allocated amounts per provider+currency using overrides when present */
   const allocated = useMemo(() => {
     const map = new Map<string, number>();
     for (const tx of pendingPayouts) {
       const sugs = suggestions.get(tx.transactionId) ?? [];
-      const top = sugs.find((s) => s.score > 0 && s.balanceSufficient);
-      if (top) {
-        const key = `${top.provider}|${tx.receiverCurrency.toUpperCase()}`;
+      const overrideKey = overrides.get(tx.transactionId);
+      let selected: { provider: string } | undefined;
+      if (overrideKey) {
+        const [prov] = overrideKey.split("|");
+        selected = sugs.find((s) => s.provider === prov && s.score > 0) ?? sugs.find((s) => s.score > 0 && s.balanceSufficient);
+      } else {
+        selected = sugs.find((s) => s.score > 0 && s.balanceSufficient);
+      }
+      if (selected) {
+        const key = `${selected.provider}|${tx.receiverCurrency.toUpperCase()}`;
         map.set(key, (map.get(key) ?? 0) + tx.receiverAmount);
       }
     }
     return map;
-  }, [pendingPayouts, suggestions]);
+  }, [pendingPayouts, suggestions, overrides]);
 
   if (error) {
     return (
@@ -67,7 +87,7 @@ const Dashboard = () => {
       )}
       <BalanceCards balances={balances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} />
       <FundMovementsPanel movements={fundMovements} isLoading={isLoading} />
-      <PayoutsTable transactions={pendingPayouts} heldBackTransactions={heldBackPayouts} suggestions={suggestions} routingRules={routingRules} isLoading={isLoading} onRelease={handleRelease} />
+      <PayoutsTable transactions={pendingPayouts} heldBackTransactions={heldBackPayouts} suggestions={suggestions} routingRules={routingRules} isLoading={isLoading} onRelease={handleRelease} overrides={overrides} onOverride={handleOverride} />
     </div>
   );
 };
