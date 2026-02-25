@@ -88,7 +88,7 @@ export function useRoutingEngine() {
       balance_insufficient_penalty: weightsMap.get("balance_insufficient_penalty") ?? DEFAULT_WEIGHTS.balance_insufficient_penalty,
       flow_target_under_bonus: weightsMap.get("flow_target_under_bonus") ?? DEFAULT_WEIGHTS.flow_target_under_bonus,
       flow_target_over_penalty: weightsMap.get("flow_target_over_penalty") ?? DEFAULT_WEIGHTS.flow_target_over_penalty,
-      pobo_penalty: weightsMap.get("pobo_penalty") ?? DEFAULT_WEIGHTS.pobo_penalty,
+      pobo_bonus: weightsMap.get("pobo_bonus") ?? DEFAULT_WEIGHTS.pobo_bonus,
       manual_penalty: weightsMap.get("manual_penalty") ?? DEFAULT_WEIGHTS.manual_penalty,
     };
 

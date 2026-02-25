@@ -36,7 +36,7 @@ export interface ScoringWeights {
   balance_insufficient_penalty: number;
   flow_target_under_bonus: number;
   flow_target_over_penalty: number;
-  pobo_penalty: number;
+  pobo_bonus: number;
   manual_penalty: number;
 }
 
@@ -46,7 +46,7 @@ export const DEFAULT_WEIGHTS: ScoringWeights = {
   balance_insufficient_penalty: 30,
   flow_target_under_bonus: 15,
   flow_target_over_penalty: 10,
-  pobo_penalty: 25,
+  pobo_bonus: 25,
   manual_penalty: 20,
 };
 
@@ -226,12 +226,11 @@ export function scoreTransaction(
       const speedBonus = Math.max(0, 40 - rail.speedRank * w.speed_rank_multiplier);
       score += speedBonus;
 
-      // POBO penalty
+      // POBO bonus — prefer POBO rails
       if (rail.isPobo) {
-        score -= w.pobo_penalty;
-        if (w.pobo_penalty > 0) {
-          railFlags.push("POBO rail");
-        }
+        score += w.pobo_bonus;
+      } else if (w.pobo_bonus > 0) {
+        railFlags.push("Non-POBO rail");
       }
 
       // Balance check
