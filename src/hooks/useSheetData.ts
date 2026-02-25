@@ -86,11 +86,11 @@ export function useTransactions(statusFilter?: string) {
 }
 
 export function usePendingPayouts() {
-  return useTransactions("pending_collection");
+  return useTransactions("pending_payout");
 }
 
 export function usePipelineTransactions() {
-  return useTransactions("collected");
+  return useTransactions("pending_collection");
 }
 
 export function useBalances() {
