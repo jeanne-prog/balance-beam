@@ -85,7 +85,9 @@ const Dashboard = () => {
       {flowTargetProgress.length > 0 && (
         <FlowTargetCards targets={flowTargetProgress} isLoading={isLoading} />
       )}
-      <BalanceCards balances={balances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} />
+      <div className="sticky top-14 z-20 -mx-6 px-6 py-3 bg-background/95 backdrop-blur-sm border-b border-border">
+        <BalanceCards balances={balances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} />
+      </div>
       <FundMovementsPanel movements={fundMovements} isLoading={isLoading} />
       <PayoutsTable transactions={pendingPayouts} heldBackTransactions={heldBackPayouts} suggestions={suggestions} routingRules={routingRules} isLoading={isLoading} onRelease={handleRelease} overrides={overrides} onOverride={handleOverride} />
     </div>
