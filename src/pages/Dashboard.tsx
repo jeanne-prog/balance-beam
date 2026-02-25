@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useRoutingEngine } from "@/hooks/useRoutingEngine";
 import { AlertCircle } from "lucide-react";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
@@ -7,6 +8,20 @@ import { FlowTargetCards } from "@/components/dashboard/FlowTargetCards";
 
 const Dashboard = () => {
   const { pendingPayouts, suggestions, balances, routingProviders, flowTargetProgress, isLoading, error } = useRoutingEngine();
+
+  /** Compute allocated amounts per provider+currency from top suggestions */
+  const allocated = useMemo(() => {
+    const map = new Map<string, number>(); // key: "PROVIDER|CURRENCY"
+    for (const tx of pendingPayouts) {
+      const sugs = suggestions.get(tx.transactionId) ?? [];
+      const top = sugs.find((s) => s.score > 0);
+      if (top) {
+        const key = `${top.provider}|${tx.receiverCurrency.toUpperCase()}`;
+        map.set(key, (map.get(key) ?? 0) + tx.receiverAmount);
+      }
+    }
+    return map;
+  }, [pendingPayouts, suggestions]);
 
   if (error) {
     return (
@@ -30,7 +45,7 @@ const Dashboard = () => {
       {flowTargetProgress.length > 0 && (
         <FlowTargetCards targets={flowTargetProgress} isLoading={isLoading} />
       )}
-      <BalanceCards balances={balances} routingProviders={routingProviders} isLoading={isLoading} />
+      <BalanceCards balances={balances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} />
       <PayoutsTable transactions={pendingPayouts} suggestions={suggestions} isLoading={isLoading} />
     </div>
   );

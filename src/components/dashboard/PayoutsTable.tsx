@@ -77,7 +77,8 @@ export function PayoutsTable({ transactions, suggestions, isLoading }: Props) {
                 <TableHead>Beneficiary</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead>Destination</TableHead>
-                <TableHead>Top Provider</TableHead>
+                <TableHead>Recommended</TableHead>
+                <TableHead>Selected</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -136,6 +137,13 @@ export function PayoutsTable({ transactions, suggestions, isLoading }: Props) {
                             )}
                           </TableCell>
                           <TableCell>
+                            {tx.payoutProviderId ? (
+                              <ProviderBadge provider={tx.payoutProviderId} />
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
                             {tx.hasBlockingIssue ? (
                               <Badge variant="destructive" className="text-xs">Blocked</Badge>
                             ) : noRoute ? (
@@ -148,7 +156,7 @@ export function PayoutsTable({ transactions, suggestions, isLoading }: Props) {
                       </CollapsibleTrigger>
                       <CollapsibleContent asChild>
                         <tr>
-                          <td colSpan={8} className="p-0 border-b bg-muted/30">
+                          <td colSpan={9} className="p-0 border-b bg-muted/30">
                             <RoutingSuggestionsPanel suggestions={sugs} />
                           </td>
                         </tr>
