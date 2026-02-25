@@ -25,7 +25,7 @@ import { computeFundMovements } from "@/lib/fundMovements";
 import { isTransactionDueForPayout } from "@/lib/routingRules";
 import type { RoutingSuggestion, RoutingRule } from "@/types";
 
-export function useRoutingEngine() {
+export function useRoutingEngine(releasedIds: Set<string> = new Set()) {
   const allTx = useTransactions();
   const balances = useBalances();
   const currencies = useCurrenciesMatrix();
@@ -75,19 +75,23 @@ export function useRoutingEngine() {
     [allTx.data]
   );
 
-  /** Only transactions that are due for payout today per routing rules */
+  /** Only transactions that are due for payout today per routing rules (or manually released) */
   const pendingPayouts = useMemo(() => {
     const rules = routingRules.data ?? [];
     if (rules.length === 0) return allPendingPayouts; // no rules = route all
-    return allPendingPayouts.filter((tx) => isTransactionDueForPayout(tx, rules));
-  }, [allPendingPayouts, routingRules.data]);
+    return allPendingPayouts.filter(
+      (tx) => isTransactionDueForPayout(tx, rules) || releasedIds.has(tx.transactionId)
+    );
+  }, [allPendingPayouts, routingRules.data, releasedIds]);
 
-  /** Transactions held back by routing rules (not yet due) */
+  /** Transactions held back by routing rules (not yet due and not released) */
   const heldBackPayouts = useMemo(() => {
     const rules = routingRules.data ?? [];
     if (rules.length === 0) return [];
-    return allPendingPayouts.filter((tx) => !isTransactionDueForPayout(tx, rules));
-  }, [allPendingPayouts, routingRules.data]);
+    return allPendingPayouts.filter(
+      (tx) => !isTransactionDueForPayout(tx, rules) && !releasedIds.has(tx.transactionId)
+    );
+  }, [allPendingPayouts, routingRules.data, releasedIds]);
 
   const results = useMemo(() => {
     if (

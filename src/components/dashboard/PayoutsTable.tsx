@@ -33,14 +33,13 @@ interface Props {
   suggestions: Map<string, RoutingSuggestion[]>;
   routingRules?: RoutingRule[];
   isLoading: boolean;
+  onRelease?: (txId: string) => void;
 }
 
-export function PayoutsTable({ transactions, heldBackTransactions = [], suggestions, routingRules = [], isLoading }: Props) {
+export function PayoutsTable({ transactions, heldBackTransactions = [], suggestions, routingRules = [], isLoading, onRelease }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   /** Manual overrides: transactionId → "PROVIDER|RAIL" */
   const [overrides, setOverrides] = useState<Map<string, string>>(new Map());
-  /** Held transactions released for routing */
-  const [releasedIds, setReleasedIds] = useState<Set<string>>(new Set());
 
   const handleOverride = useCallback((txId: string, value: string) => {
     setOverrides((prev) => {
@@ -54,27 +53,14 @@ export function PayoutsTable({ transactions, heldBackTransactions = [], suggesti
     });
   }, []);
 
-  const handleRelease = useCallback((txId: string) => {
-    setReleasedIds((prev) => new Set(prev).add(txId));
-  }, []);
-
-  /** Merge due + held-but-not-released transactions, tagging held ones */
+  /** Set of transaction IDs that are still held (not released — released ones move to `transactions`) */
   const heldSet = useMemo(() => {
-    const released = releasedIds;
-    return new Set(
-      heldBackTransactions
-        .filter((t) => !released.has(t.transactionId))
-        .map((t) => t.transactionId)
-    );
-  }, [heldBackTransactions, releasedIds]);
+    return new Set(heldBackTransactions.map((t) => t.transactionId));
+  }, [heldBackTransactions]);
 
   const allTransactions = useMemo(() => {
-    // Include held-back transactions that haven't been released
-    const heldNotReleased = heldBackTransactions.filter(
-      (t) => heldSet.has(t.transactionId)
-    );
-    return [...transactions, ...heldNotReleased];
-  }, [transactions, heldBackTransactions, heldSet]);
+    return [...transactions, ...heldBackTransactions];
+  }, [transactions, heldBackTransactions]);
 
   const sorted = useMemo(() => {
     return [...allTransactions].sort((a, b) => {
@@ -266,7 +252,7 @@ export function PayoutsTable({ transactions, heldBackTransactions = [], suggesti
                                   variant="ghost"
                                   size="sm"
                                   className="h-6 px-2 text-xs text-primary hover:text-primary"
-                                  onClick={() => handleRelease(tx.transactionId)}
+                                  onClick={() => onRelease?.(tx.transactionId)}
                                 >
                                   <PlayCircle className="h-3 w-3 mr-1" />
                                   Release
