@@ -1,10 +1,31 @@
+import { useRoutingEngine } from "@/hooks/useRoutingEngine";
+import { AlertCircle } from "lucide-react";
+import { DashboardStats } from "@/components/dashboard/DashboardStats";
+import { PayoutsTable } from "@/components/dashboard/PayoutsTable";
+
 const Dashboard = () => {
+  const { pendingPayouts, suggestions, isLoading, error } = useRoutingEngine();
+
+  if (error) {
+    return (
+      <div className="flex items-center gap-2 text-destructive p-4">
+        <AlertCircle className="h-4 w-4" />
+        <span className="text-sm">Failed to load dashboard: {(error as Error).message}</span>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <h1 className="text-xl font-semibold mb-4">Dashboard</h1>
-      <p className="text-sm text-muted-foreground">
-        Daily routing view — balances, payments table, and fund movement suggestions will appear here.
-      </p>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl font-semibold">Dashboard</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Pending payouts with routing suggestions — click a row to see ranked providers.
+        </p>
+      </div>
+
+      <DashboardStats transactions={pendingPayouts} suggestions={suggestions} isLoading={isLoading} />
+      <PayoutsTable transactions={pendingPayouts} suggestions={suggestions} isLoading={isLoading} />
     </div>
   );
 };
