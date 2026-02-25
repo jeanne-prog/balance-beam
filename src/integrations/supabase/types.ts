@@ -14,7 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      scoring_weights: {
+        Row: {
+          description: string | null
+          id: string
+          key: string
+          label: string
+          max_value: number
+          min_value: number
+          sort_order: number
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          description?: string | null
+          id?: string
+          key: string
+          label: string
+          max_value?: number
+          min_value?: number
+          sort_order?: number
+          updated_at?: string
+          value?: number
+        }
+        Update: {
+          description?: string | null
+          id?: string
+          key?: string
+          label?: string
+          max_value?: number
+          min_value?: number
+          sort_order?: number
+          updated_at?: string
+          value?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

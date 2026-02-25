@@ -30,17 +30,38 @@ import type {
 
 /* ── Input data bundle ───────────────────────────────────── */
 
+export interface ScoringWeights {
+  speed_rank_multiplier: number;
+  balance_sufficient_bonus: number;
+  balance_insufficient_penalty: number;
+  flow_target_under_bonus: number;
+  flow_target_over_penalty: number;
+  pobo_penalty: number;
+  manual_penalty: number;
+}
+
+export const DEFAULT_WEIGHTS: ScoringWeights = {
+  speed_rank_multiplier: 10,
+  balance_sufficient_bonus: 20,
+  balance_insufficient_penalty: 30,
+  flow_target_under_bonus: 15,
+  flow_target_over_penalty: 10,
+  pobo_penalty: 25,
+  manual_penalty: 20,
+};
+
 export interface RoutingContext {
   currencyRails: CurrencyRail[];
-  senderCountryMatrix: Record<string, unknown>[];  // pivot rows
-  receiverCountryMatrix: Record<string, unknown>[]; // pivot rows
+  senderCountryMatrix: Record<string, unknown>[];
+  receiverCountryMatrix: Record<string, unknown>[];
   benesBanned: BeneBanned[];
   sendersBanned: SenderBanned[];
   swiftCodesBanned: SwiftCodeBanned[];
   lightKycSenders: LightKycSender[];
   flowTargets: FlowTarget[];
   balances: Balance[];
-  allTransactions: Transaction[]; // for computing current flow %
+  allTransactions: Transaction[];
+  weights?: ScoringWeights;
 }
 
 /* ── Helpers ──────────────────────────────────────────────── */
@@ -116,6 +137,7 @@ export function scoreTransaction(
     ctx.lightKycSenders.map((s) => normalize(s.senderName))
   );
 
+  const w = ctx.weights ?? DEFAULT_WEIGHTS;
   const isLightKyc = lightKycSet.has(normalize(tx.senderName));
   const flowDist = computeFlowDistribution(ctx.allTransactions);
   const totalRouted = Array.from(flowDist.values()).reduce((a, b) => a + b, 0);
@@ -200,9 +222,17 @@ export function scoreTransaction(
       let score = 100;
       const railFlags: string[] = [];
 
-      // Speed rank: lower is better. Rank 1 = +30, Rank 2 = +20, Rank 3 = +10
-      const speedBonus = Math.max(0, 40 - rail.speedRank * 10);
+      // Speed rank: lower is better. Uses dynamic multiplier.
+      const speedBonus = Math.max(0, 40 - rail.speedRank * w.speed_rank_multiplier);
       score += speedBonus;
+
+      // POBO penalty
+      if (rail.isPobo) {
+        score -= w.pobo_penalty;
+        if (w.pobo_penalty > 0) {
+          railFlags.push("POBO rail");
+        }
+      }
 
       // Balance check
       const balance = getProviderBalance(
@@ -212,9 +242,9 @@ export function scoreTransaction(
       );
       const balanceSufficient = balance >= tx.receiverAmount;
       if (balanceSufficient) {
-        score += 20;
+        score += w.balance_sufficient_bonus;
       } else {
-        score -= 30;
+        score -= w.balance_insufficient_penalty;
         railFlags.push(
           `Insufficient balance (${balance.toLocaleString()} vs ${tx.receiverAmount.toLocaleString()})`
         );
@@ -231,11 +261,9 @@ export function scoreTransaction(
           ((flowDist.get(providerKey) ?? 0) / totalRouted) * 100;
         const targetPct = targets[0].targetPct;
         if (currentPct < targetPct) {
-          // Under target — boost
-          score += 15;
+          score += w.flow_target_under_bonus;
         } else if (currentPct > targetPct * 1.5) {
-          // Way over target — penalize
-          score -= 10;
+          score -= w.flow_target_over_penalty;
           railFlags.push(`Over flow target (${currentPct.toFixed(1)}% vs ${targetPct}%)`);
         }
       }

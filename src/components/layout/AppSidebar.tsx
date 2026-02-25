@@ -10,6 +10,7 @@ import {
   Target,
   Building2,
   ArrowRightLeft,
+  SlidersHorizontal,
 } from "lucide-react";
 
 const mainNav = [
@@ -23,6 +24,7 @@ const adminNav = [
   { to: "/admin/rules", label: "Routing Rules", icon: Scale },
   { to: "/admin/beneficiaries", label: "Beneficiaries", icon: Building2 },
   { to: "/admin/targets", label: "Flow Targets", icon: Target },
+  { to: "/admin/weights", label: "Scoring Weights", icon: SlidersHorizontal },
   { to: "/admin/users", label: "Users", icon: Users },
 ];
 
