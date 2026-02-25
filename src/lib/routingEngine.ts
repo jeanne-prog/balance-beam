@@ -145,14 +145,21 @@ export function getProviderFlowPcts(
   const flowDist = computeFlowDistribution(allTransactions);
   const totalRouted = Array.from(flowDist.values()).reduce((a, b) => a + b, 0);
 
-  return flowTargets
-    .filter((ft) => ft.targetPct != null && ft.targetPct > 0)
-    .map((ft) => {
+  // Aggregate targets by provider (a provider may have targets for multiple currencies)
+  const targetsByProvider = new Map<string, number>();
+  for (const ft of flowTargets) {
+    if (ft.targetPct != null && ft.targetPct > 0) {
       const key = normalize(ft.provider);
-      const currentAmt = flowDist.get(key) ?? 0;
-      const currentPct = totalRouted > 0 ? (currentAmt / totalRouted) * 100 : 0;
-      return { provider: key, currentPct, targetPct: ft.targetPct! };
-    });
+      // Use the max target across currencies for the provider
+      targetsByProvider.set(key, Math.max(targetsByProvider.get(key) ?? 0, ft.targetPct));
+    }
+  }
+
+  return Array.from(targetsByProvider.entries()).map(([provider, targetPct]) => {
+    const currentAmt = flowDist.get(provider) ?? 0;
+    const currentPct = totalRouted > 0 ? (currentAmt / totalRouted) * 100 : 0;
+    return { provider, currentPct, targetPct };
+  });
 }
 
 /* ── Main scoring function ───────────────────────────────── */
