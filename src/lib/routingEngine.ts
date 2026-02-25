@@ -335,13 +335,64 @@ export function scoreTransaction(
 
 /* ── Batch score all pending transactions ────────────────── */
 
+/**
+ * Score and allocate transactions oldest-first by collectedAtDate.
+ * Balance is a hard constraint: each allocation deducts from remaining balance
+ * so subsequent transactions see what's actually left.
+ */
 export function scoreAllTransactions(
   pendingTransactions: Transaction[],
   ctx: RoutingContext
 ): Map<string, RoutingSuggestion[]> {
-  const results = new Map<string, RoutingSuggestion[]>();
-  for (const tx of pendingTransactions) {
-    results.set(tx.transactionId, scoreTransaction(tx, ctx));
+  // Sort oldest collected first
+  const sorted = [...pendingTransactions].sort((a, b) => {
+    const da = a.collectedAtDate ? new Date(a.collectedAtDate).getTime() : Infinity;
+    const db = b.collectedAtDate ? new Date(b.collectedAtDate).getTime() : Infinity;
+    return da - db;
+  });
+
+  // Track remaining balances (mutable copy)
+  const remainingBalances = new Map<string, number>();
+  for (const b of ctx.balances) {
+    const key = `${normalize(b.provider)}|${normalize(b.currency)}`;
+    remainingBalances.set(key, (remainingBalances.get(key) ?? 0) + b.currentBalance);
   }
+
+  const results = new Map<string, RoutingSuggestion[]>();
+
+  for (const tx of sorted) {
+    // Score with a context that uses remaining balances
+    const ctxWithRemaining: RoutingContext = {
+      ...ctx,
+      balances: balancesFromRemaining(remainingBalances),
+    };
+    const suggestions = scoreTransaction(tx, ctxWithRemaining);
+    results.set(tx.transactionId, suggestions);
+
+    // Deduct from remaining balance for the top eligible suggestion
+    const top = suggestions.find((s) => s.score > 0 && s.balanceSufficient);
+    if (top) {
+      const key = `${normalize(top.provider)}|${normalize(tx.receiverCurrency)}`;
+      const cur = remainingBalances.get(key) ?? 0;
+      remainingBalances.set(key, cur - tx.receiverAmount);
+    }
+  }
+
   return results;
+}
+
+/** Convert the remaining-balance map back into Balance[] for scoring */
+function balancesFromRemaining(remaining: Map<string, number>): Balance[] {
+  return Array.from(remaining.entries()).map(([key, amount]) => {
+    const [provider, currency] = key.split("|");
+    return {
+      accountId: `synth-${key}`,
+      accountName: provider,
+      accountCountry: "",
+      provider,
+      currency,
+      currentBalance: amount,
+      lastBalanceAt: "",
+    };
+  });
 }
