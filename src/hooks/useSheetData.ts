@@ -147,7 +147,7 @@ export function useBenesBanned() {
 export function useSendersBanned() {
   return useSheetTab<SenderBanned>("sendersBanned", (raw) =>
     raw.map((r) => ({
-      senderName: str(r["Sender name"] ?? r.sender_name ?? r["Sender"]),
+      senderName: str(r.Sender ?? r["Sender name"] ?? r.sender_name),
       provider: str(r.Provider ?? r.provider),
     }))
   );
@@ -156,7 +156,7 @@ export function useSendersBanned() {
 export function useSwiftCodesBanned() {
   return useSheetTab<SwiftCodeBanned>("swiftCodesBanned", (raw) =>
     raw.map((r) => ({
-      swiftCode: str(r["SWIFT code"] ?? r.swift_code ?? r["SWIFT"]),
+      swiftCode: str(r.Code ?? r["SWIFT code"] ?? r.swift_code),
       provider: str(r.Provider ?? r.provider),
     }))
   );
