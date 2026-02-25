@@ -160,15 +160,25 @@ async function appendSheet(
 /* ── Helper: rows → objects using header row ─────────────── */
 
 function rowsToObjects(rows: unknown[][]): Record<string, unknown>[] {
-  if (rows.length < 2) return [];
-  const headers = rows[0] as string[];
-  return rows.slice(1).map((row) => {
-    const obj: Record<string, unknown> = {};
-    headers.forEach((h, i) => {
-      obj[h] = row[i] ?? null;
+  // Find the first non-empty row to use as headers
+  let headerIdx = -1;
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i] && rows[i].length > 0 && rows[i].some((cell) => cell !== null && cell !== undefined && cell !== "")) {
+      headerIdx = i;
+      break;
+    }
+  }
+  if (headerIdx === -1 || headerIdx >= rows.length - 1) return [];
+  const headers = rows[headerIdx] as string[];
+  return rows.slice(headerIdx + 1)
+    .filter((row) => row && row.length > 0 && row.some((cell) => cell !== null && cell !== undefined && cell !== ""))
+    .map((row) => {
+      const obj: Record<string, unknown> = {};
+      headers.forEach((h, i) => {
+        obj[h] = row[i] ?? null;
+      });
+      return obj;
     });
-    return obj;
-  });
 }
 
 /* ── Main handler ────────────────────────────────────────── */
