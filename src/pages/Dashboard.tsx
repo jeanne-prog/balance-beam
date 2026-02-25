@@ -63,7 +63,7 @@ const Dashboard = () => {
       )}
       <BalanceCards balances={balances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} />
       <FundMovementsPanel movements={fundMovements} isLoading={isLoading} />
-      <PayoutsTable transactions={pendingPayouts} suggestions={suggestions} isLoading={isLoading} />
+      <PayoutsTable transactions={pendingPayouts} heldBackTransactions={heldBackPayouts} suggestions={suggestions} routingRules={routingRules} isLoading={isLoading} />
     </div>
   );
 };
