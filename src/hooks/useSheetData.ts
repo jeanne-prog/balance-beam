@@ -10,6 +10,7 @@ import type {
   SenderBanned,
   SwiftCodeBanned,
   LightKycSender,
+  ProviderManual,
 } from "@/types";
 
 /* ── Generic hook for any tab ────────────────────────────── */
@@ -195,6 +196,15 @@ export function useSenderCountryMatrix() {
 
 export function useReceiverCountryMatrix() {
   return useSheetTab("receiverCountryMatrix");
+}
+
+export function useProviderManual() {
+  return useSheetTab<ProviderManual>("providerManual", (raw) =>
+    raw.map((r) => ({
+      provider: str(r.provider_id ?? r.Provider ?? r.provider),
+      isManual: parseBool(r.is_manual ?? r["Is Manual"] ?? r.manual),
+    }))
+  );
 }
 
 /* ── Mutations ───────────────────────────────────────────── */

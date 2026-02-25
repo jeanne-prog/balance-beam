@@ -17,6 +17,7 @@ export const TAB_KEYS = [
   "swiftCodesBanned",
   "lightKycSenders",
   "flowTargets",
+  "providerManual",
 ] as const;
 
 export type TabKey = (typeof TAB_KEYS)[number];

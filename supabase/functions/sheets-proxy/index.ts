@@ -19,6 +19,7 @@ const TABS = {
   swiftCodesBanned: "SWIFT_codes_banned",
   lightKycSenders: "light_KYC_senders",
   flowTargets: "flow_targets",
+  providerManual: "provider_manual",
 } as const;
 
 type TabKey = keyof typeof TABS;

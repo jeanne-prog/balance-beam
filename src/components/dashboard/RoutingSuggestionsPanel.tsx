@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ProviderBadge } from "./ProviderBadge";
-import { Check, X, AlertTriangle, Zap, Wallet } from "lucide-react";
+import { Check, X, AlertTriangle, Zap, Wallet, Target } from "lucide-react";
 import type { RoutingSuggestion } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +53,11 @@ export function RoutingSuggestionsPanel({ suggestions }: Props) {
                 <ProviderBadge provider={s.provider} />
                 <Badge variant="secondary" className="text-xs font-mono-numbers">{s.rail}</Badge>
                 {s.isPobo && <Badge variant="outline" className="text-xs">POBO</Badge>}
+                {s.isFlowTargetAssignment && (
+                  <Badge variant="outline" className="text-xs border-[hsl(var(--status-warning)/0.4)] text-[hsl(var(--status-warning))]">
+                    <Target className="h-3 w-3 mr-0.5" /> Flow target
+                  </Badge>
+                )}
                 {isTop && (
                   <Badge className="text-xs status-positive border-0">
                     <Zap className="h-3 w-3 mr-0.5" /> Recommended

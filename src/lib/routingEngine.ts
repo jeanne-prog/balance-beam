@@ -12,8 +12,12 @@
  *
  * Scoring factors (soft ranking among eligible providers):
  *  - Speed rank (lower = faster = better)
- *  - Balance sufficiency (provider has enough balance in that currency)
- *  - Flow target alignment (prefer providers that are under their target %)
+ *  - Balance sufficiency (single weight: +W if sufficient, -W if not)
+ *  - POBO bonus (prefer POBO rails)
+ *  - Manual penalty (penalize providers requiring manual processing)
+ *
+ * Flow targets:
+ *  - Force-assign eligible transactions to under-target providers
  */
 
 import type {
@@ -26,26 +30,21 @@ import type {
   LightKycSender,
   FlowTarget,
   RoutingSuggestion,
+  ProviderManual,
 } from "@/types";
 
 /* ── Input data bundle ───────────────────────────────────── */
 
 export interface ScoringWeights {
   speed_rank_multiplier: number;
-  balance_sufficient_bonus: number;
-  balance_insufficient_penalty: number;
-  flow_target_under_bonus: number;
-  flow_target_over_penalty: number;
+  balance_weight: number;
   pobo_bonus: number;
   manual_penalty: number;
 }
 
 export const DEFAULT_WEIGHTS: ScoringWeights = {
   speed_rank_multiplier: 10,
-  balance_sufficient_bonus: 20,
-  balance_insufficient_penalty: 30,
-  flow_target_under_bonus: 15,
-  flow_target_over_penalty: 10,
+  balance_weight: 20,
   pobo_bonus: 25,
   manual_penalty: 20,
 };
@@ -61,12 +60,11 @@ export interface RoutingContext {
   flowTargets: FlowTarget[];
   balances: Balance[];
   allTransactions: Transaction[];
+  providerManual: ProviderManual[];
   weights?: ScoringWeights;
 }
 
 /* ── Helpers ──────────────────────────────────────────────── */
-
-const PROVIDERS = ["CORPAY", "EMQ", "GIB", "NEO", "TAZAPAY"] as const;
 
 function normalize(s: string): string {
   return s.trim().toUpperCase();
@@ -115,6 +113,48 @@ function getProviderBalance(
     .reduce((sum, b) => sum + b.currentBalance, 0);
 }
 
+/* ── Flow target allocation ──────────────────────────────── */
+
+/** Compute which providers are under their flow target */
+export function getUnderTargetProviders(
+  flowTargets: FlowTarget[],
+  allTransactions: Transaction[]
+): Map<string, { currentPct: number; targetPct: number }> {
+  const flowDist = computeFlowDistribution(allTransactions);
+  const totalRouted = Array.from(flowDist.values()).reduce((a, b) => a + b, 0);
+  const result = new Map<string, { currentPct: number; targetPct: number }>();
+
+  for (const ft of flowTargets) {
+    if (ft.targetPct == null || ft.targetPct <= 0) continue;
+    const key = normalize(ft.provider);
+    const currentAmt = flowDist.get(key) ?? 0;
+    const currentPct = totalRouted > 0 ? (currentAmt / totalRouted) * 100 : 0;
+    if (currentPct < ft.targetPct) {
+      result.set(key, { currentPct, targetPct: ft.targetPct });
+    }
+  }
+
+  return result;
+}
+
+/** Get flow distribution as percentages per provider */
+export function getProviderFlowPcts(
+  flowTargets: FlowTarget[],
+  allTransactions: Transaction[]
+): { provider: string; currentPct: number; targetPct: number }[] {
+  const flowDist = computeFlowDistribution(allTransactions);
+  const totalRouted = Array.from(flowDist.values()).reduce((a, b) => a + b, 0);
+
+  return flowTargets
+    .filter((ft) => ft.targetPct != null && ft.targetPct > 0)
+    .map((ft) => {
+      const key = normalize(ft.provider);
+      const currentAmt = flowDist.get(key) ?? 0;
+      const currentPct = totalRouted > 0 ? (currentAmt / totalRouted) * 100 : 0;
+      return { provider: key, currentPct, targetPct: ft.targetPct! };
+    });
+}
+
 /* ── Main scoring function ───────────────────────────────── */
 
 export function scoreTransaction(
@@ -136,11 +176,15 @@ export function scoreTransaction(
   const lightKycSet = new Set(
     ctx.lightKycSenders.map((s) => normalize(s.senderName))
   );
+  const manualSet = new Set(
+    ctx.providerManual.filter((p) => p.isManual).map((p) => normalize(p.provider))
+  );
 
   const w = ctx.weights ?? DEFAULT_WEIGHTS;
   const isLightKyc = lightKycSet.has(normalize(tx.senderName));
-  const flowDist = computeFlowDistribution(ctx.allTransactions);
-  const totalRouted = Array.from(flowDist.values()).reduce((a, b) => a + b, 0);
+
+  // Check which providers are under flow target
+  const underTarget = getUnderTargetProviders(ctx.flowTargets, ctx.allTransactions);
 
   // Find all currency/rail combos for the receiver currency
   const matchingRails = ctx.currencyRails.filter(
@@ -204,7 +248,6 @@ export function scoreTransaction(
     }
 
     if (disqualified) {
-      // Still include with score 0 so the UI can show why
       suggestions.push({
         provider: providerKey,
         rail: rails[0]?.rail ?? "SWIFT",
@@ -217,12 +260,22 @@ export function scoreTransaction(
       continue;
     }
 
+    // ── Check if this provider is under flow target ──
+    const targetInfo = underTarget.get(providerKey);
+    const isFlowTargetAssignment = !!targetInfo;
+
     // ── Score each rail for this provider ──
     for (const rail of rails) {
-      let score = 100;
+      let score = isFlowTargetAssignment ? 1000 : 100; // Force-assign gets massive base score
       const railFlags: string[] = [];
 
-      // Speed rank: lower is better. Uses dynamic multiplier.
+      if (isFlowTargetAssignment) {
+        railFlags.push(
+          `Flow target: ${targetInfo!.currentPct.toFixed(1)}% → ${targetInfo!.targetPct}%`
+        );
+      }
+
+      // Speed rank: lower is better
       const speedBonus = Math.max(0, 40 - rail.speedRank * w.speed_rank_multiplier);
       score += speedBonus;
 
@@ -233,7 +286,7 @@ export function scoreTransaction(
         railFlags.push("Non-POBO rail");
       }
 
-      // Balance check
+      // Balance check (single weight)
       const balance = getProviderBalance(
         ctx.balances,
         providerKey,
@@ -241,30 +294,18 @@ export function scoreTransaction(
       );
       const balanceSufficient = balance >= tx.receiverAmount;
       if (balanceSufficient) {
-        score += w.balance_sufficient_bonus;
+        score += w.balance_weight;
       } else {
-        score -= w.balance_insufficient_penalty;
+        score -= w.balance_weight;
         railFlags.push(
           `Insufficient balance (${balance.toLocaleString()} vs ${tx.receiverAmount.toLocaleString()})`
         );
       }
 
-      // Flow target alignment
-      const targets = ctx.flowTargets.filter(
-        (ft) =>
-          normalize(ft.provider) === providerKey &&
-          normalize(ft.currency) === normalize(tx.receiverCurrency)
-      );
-      if (targets.length > 0 && targets[0].targetPct != null && totalRouted > 0) {
-        const currentPct =
-          ((flowDist.get(providerKey) ?? 0) / totalRouted) * 100;
-        const targetPct = targets[0].targetPct;
-        if (currentPct < targetPct) {
-          score += w.flow_target_under_bonus;
-        } else if (currentPct > targetPct * 1.5) {
-          score -= w.flow_target_over_penalty;
-          railFlags.push(`Over flow target (${currentPct.toFixed(1)}% vs ${targetPct}%)`);
-        }
+      // Manual processing penalty
+      if (manualSet.has(providerKey)) {
+        score -= w.manual_penalty;
+        railFlags.push("Manual processing required");
       }
 
       suggestions.push({
@@ -275,6 +316,7 @@ export function scoreTransaction(
         balanceSufficient,
         availableTomorrow: rail.speedRank <= 2,
         flaggedReasons: railFlags,
+        isFlowTargetAssignment,
       });
     }
   }
