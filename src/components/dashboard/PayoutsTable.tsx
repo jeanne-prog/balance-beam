@@ -3,6 +3,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -11,10 +12,11 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ChevronRight, ArrowUpRight, AlertTriangle } from "lucide-react";
+import { ChevronRight, ArrowUpRight, AlertTriangle, Clock, PlayCircle } from "lucide-react";
 import { ProviderBadge } from "./ProviderBadge";
 import { RoutingSuggestionsPanel } from "./RoutingSuggestionsPanel";
-import type { Transaction, RoutingSuggestion } from "@/types";
+import type { Transaction, RoutingSuggestion, RoutingRule } from "@/types";
+import { getTransactionDueDate } from "@/lib/routingRules";
 import { cn } from "@/lib/utils";
 
 function formatCurrency(amount: number, currency: string) {
@@ -27,14 +29,18 @@ function formatCurrency(amount: number, currency: string) {
 
 interface Props {
   transactions: Transaction[];
+  heldBackTransactions?: Transaction[];
   suggestions: Map<string, RoutingSuggestion[]>;
+  routingRules?: RoutingRule[];
   isLoading: boolean;
 }
 
-export function PayoutsTable({ transactions, suggestions, isLoading }: Props) {
+export function PayoutsTable({ transactions, heldBackTransactions = [], suggestions, routingRules = [], isLoading }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   /** Manual overrides: transactionId → "PROVIDER|RAIL" */
   const [overrides, setOverrides] = useState<Map<string, string>>(new Map());
+  /** Held transactions released for routing */
+  const [releasedIds, setReleasedIds] = useState<Set<string>>(new Set());
 
   const handleOverride = useCallback((txId: string, value: string) => {
     setOverrides((prev) => {
@@ -48,8 +54,34 @@ export function PayoutsTable({ transactions, suggestions, isLoading }: Props) {
     });
   }, []);
 
+  const handleRelease = useCallback((txId: string) => {
+    setReleasedIds((prev) => new Set(prev).add(txId));
+  }, []);
+
+  /** Merge due + held-but-not-released transactions, tagging held ones */
+  const heldSet = useMemo(() => {
+    const released = releasedIds;
+    return new Set(
+      heldBackTransactions
+        .filter((t) => !released.has(t.transactionId))
+        .map((t) => t.transactionId)
+    );
+  }, [heldBackTransactions, releasedIds]);
+
+  const allTransactions = useMemo(() => {
+    // Include held-back transactions that haven't been released
+    const heldNotReleased = heldBackTransactions.filter(
+      (t) => heldSet.has(t.transactionId)
+    );
+    return [...transactions, ...heldNotReleased];
+  }, [transactions, heldBackTransactions, heldSet]);
+
   const sorted = useMemo(() => {
-    return [...transactions].sort((a, b) => {
+    return [...allTransactions].sort((a, b) => {
+      const aHeld = heldSet.has(a.transactionId);
+      const bHeld = heldSet.has(b.transactionId);
+      // Held transactions go to the bottom
+      if (aHeld !== bHeld) return aHeld ? 1 : -1;
       if (a.hasBlockingIssue !== b.hasBlockingIssue) return a.hasBlockingIssue ? -1 : 1;
       const aTop = (suggestions.get(a.transactionId)?.[0]?.score ?? 0);
       const bTop = (suggestions.get(b.transactionId)?.[0]?.score ?? 0);
@@ -57,7 +89,7 @@ export function PayoutsTable({ transactions, suggestions, isLoading }: Props) {
       if (bTop === 0 && aTop !== 0) return 1;
       return b.usdValue - a.usdValue;
     });
-  }, [transactions, suggestions]);
+  }, [allTransactions, suggestions, heldSet]);
 
   if (isLoading) {
     return (
@@ -69,7 +101,7 @@ export function PayoutsTable({ transactions, suggestions, isLoading }: Props) {
     );
   }
 
-  if (!transactions.length) {
+  if (!transactions.length && !heldBackTransactions.length) {
     return (
       <Card>
         <CardContent className="p-8 text-center text-muted-foreground text-sm">
@@ -99,10 +131,12 @@ export function PayoutsTable({ transactions, suggestions, isLoading }: Props) {
             </TableHeader>
             <TableBody>
               {sorted.map((tx) => {
+                const isHeld = heldSet.has(tx.transactionId);
                 const sugs = suggestions.get(tx.transactionId) ?? [];
                 const top = sugs.find((s) => s.score > 0);
-                const noRoute = sugs.length === 0 || sugs.every((s) => s.score === 0);
+                const noRoute = !isHeld && (sugs.length === 0 || sugs.every((s) => s.score === 0));
                 const isOpen = expandedId === tx.transactionId;
+                const dueDate = isHeld ? getTransactionDueDate(tx, routingRules) : null;
 
                 // Eligible providers for the dropdown (score > 0)
                 const eligible = sugs.filter((s) => s.score > 0);
@@ -129,6 +163,7 @@ export function PayoutsTable({ transactions, suggestions, isLoading }: Props) {
                         <TableRow className={cn(
                           "cursor-pointer transition-colors",
                           isOpen && "bg-muted/50",
+                          isHeld && "opacity-60",
                           tx.hasBlockingIssue && "bg-[hsl(var(--status-danger-bg))]",
                           noRoute && !tx.hasBlockingIssue && "bg-[hsl(var(--status-warning-bg))]"
                         )}>
@@ -158,7 +193,9 @@ export function PayoutsTable({ transactions, suggestions, isLoading }: Props) {
                             <Badge variant="outline" className="text-xs">{tx.receiverCountry}</Badge>
                           </TableCell>
                           <TableCell>
-                            {top ? (
+                            {isHeld ? (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            ) : top ? (
                               <div className="flex items-center gap-1.5">
                                 <ProviderBadge provider={top.provider} />
                                 <span className="text-xs text-muted-foreground font-mono-numbers">{top.rail}</span>
@@ -170,7 +207,9 @@ export function PayoutsTable({ transactions, suggestions, isLoading }: Props) {
                             )}
                           </TableCell>
                           <TableCell onClick={(e) => e.stopPropagation()}>
-                            {providerOptions.length > 0 ? (
+                            {isHeld ? (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            ) : providerOptions.length > 0 ? (
                               <Select
                                 value={overrideKey ?? "__recommended"}
                                 onValueChange={(val) => handleOverride(tx.transactionId, val)}
@@ -216,8 +255,24 @@ export function PayoutsTable({ transactions, suggestions, isLoading }: Props) {
                               <span className="text-xs text-muted-foreground">—</span>
                             )}
                           </TableCell>
-                          <TableCell>
-                            {tx.hasBlockingIssue ? (
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            {isHeld ? (
+                              <div className="flex items-center gap-1.5">
+                                <Badge variant="outline" className="text-xs border-muted-foreground/40 text-muted-foreground">
+                                  <Clock className="h-3 w-3 mr-1" />
+                                  Held{dueDate ? ` → ${dueDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}
+                                </Badge>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs text-primary hover:text-primary"
+                                  onClick={() => handleRelease(tx.transactionId)}
+                                >
+                                  <PlayCircle className="h-3 w-3 mr-1" />
+                                  Release
+                                </Button>
+                              </div>
+                            ) : tx.hasBlockingIssue ? (
                               <Badge variant="destructive" className="text-xs">Blocked</Badge>
                             ) : noRoute ? (
                               <Badge variant="outline" className="text-xs border-[hsl(var(--status-warning)/0.4)] text-[hsl(var(--status-warning))]">Needs review</Badge>
