@@ -3,7 +3,7 @@
  * All Google Sheets data lives in one spreadsheet; tabs are referenced by key.
  */
 
-import { supabase } from "@/integrations/supabase/client";
+
 
 export const TAB_KEYS = [
   "transactions",
@@ -27,14 +27,6 @@ export interface SheetReadResponse {
 }
 
 export async function readTab(tab: TabKey): Promise<Record<string, unknown>[]> {
-  const { data, error } = await supabase.functions.invoke("sheets-proxy", {
-    body: null,
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-  });
-
-  // supabase.functions.invoke doesn't support query params well for GET,
-  // so we use POST with action in body instead
   const resp = await fetch(
     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sheets-proxy?action=read&tab=${tab}`,
     {
