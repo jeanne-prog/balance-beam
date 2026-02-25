@@ -11,9 +11,12 @@ import {
   useSenderCountryMatrix,
   useReceiverCountryMatrix,
 } from "@/hooks/useSheetData";
+import { useScoringWeightsMap } from "@/hooks/useScoringWeights";
 import {
   scoreAllTransactions,
   type RoutingContext,
+  type ScoringWeights,
+  DEFAULT_WEIGHTS,
 } from "@/lib/routingEngine";
 import type { Transaction, RoutingSuggestion } from "@/types";
 
@@ -29,6 +32,7 @@ export function useRoutingEngine() {
   const flowTargets = useFlowTargets();
   const senderMatrix = useSenderCountryMatrix();
   const receiverMatrix = useReceiverCountryMatrix();
+  const { weightsMap, isLoading: weightsLoading } = useScoringWeightsMap();
 
   const isLoading =
     allTx.isLoading ||
@@ -40,7 +44,8 @@ export function useRoutingEngine() {
     lightKyc.isLoading ||
     flowTargets.isLoading ||
     senderMatrix.isLoading ||
-    receiverMatrix.isLoading;
+    receiverMatrix.isLoading ||
+    weightsLoading;
 
   const error =
     allTx.error ||
@@ -77,6 +82,16 @@ export function useRoutingEngine() {
       return new Map<string, RoutingSuggestion[]>();
     }
 
+    const weights: ScoringWeights = {
+      speed_rank_multiplier: weightsMap.get("speed_rank_multiplier") ?? DEFAULT_WEIGHTS.speed_rank_multiplier,
+      balance_sufficient_bonus: weightsMap.get("balance_sufficient_bonus") ?? DEFAULT_WEIGHTS.balance_sufficient_bonus,
+      balance_insufficient_penalty: weightsMap.get("balance_insufficient_penalty") ?? DEFAULT_WEIGHTS.balance_insufficient_penalty,
+      flow_target_under_bonus: weightsMap.get("flow_target_under_bonus") ?? DEFAULT_WEIGHTS.flow_target_under_bonus,
+      flow_target_over_penalty: weightsMap.get("flow_target_over_penalty") ?? DEFAULT_WEIGHTS.flow_target_over_penalty,
+      pobo_penalty: weightsMap.get("pobo_penalty") ?? DEFAULT_WEIGHTS.pobo_penalty,
+      manual_penalty: weightsMap.get("manual_penalty") ?? DEFAULT_WEIGHTS.manual_penalty,
+    };
+
     const ctx: RoutingContext = {
       currencyRails: currencies.data,
       senderCountryMatrix: senderMatrix.data,
@@ -88,6 +103,7 @@ export function useRoutingEngine() {
       flowTargets: flowTargets.data,
       balances: balances.data,
       allTransactions: allTx.data,
+      weights,
     };
 
     return scoreAllTransactions(pendingPayouts, ctx);
@@ -103,6 +119,7 @@ export function useRoutingEngine() {
     flowTargets.data,
     senderMatrix.data,
     receiverMatrix.data,
+    weightsMap,
     pendingPayouts,
   ]);
 

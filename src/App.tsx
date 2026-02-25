@@ -13,6 +13,7 @@ import Rules from "./pages/admin/Rules";
 import Beneficiaries from "./pages/admin/Beneficiaries";
 import Targets from "./pages/admin/Targets";
 import UserManagement from "./pages/admin/UserManagement";
+import ScoringWeights from "./pages/admin/ScoringWeights";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/admin/beneficiaries" element={<Beneficiaries />} />
             <Route path="/admin/targets" element={<Targets />} />
             <Route path="/admin/users" element={<UserManagement />} />
+            <Route path="/admin/weights" element={<ScoringWeights />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
