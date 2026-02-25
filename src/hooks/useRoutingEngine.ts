@@ -11,6 +11,7 @@ import {
   useSenderCountryMatrix,
   useReceiverCountryMatrix,
   useProviderManual,
+  useRoutingRules,
 } from "@/hooks/useSheetData";
 import { useScoringWeightsMap } from "@/hooks/useScoringWeights";
 import {
@@ -21,7 +22,8 @@ import {
   DEFAULT_WEIGHTS,
 } from "@/lib/routingEngine";
 import { computeFundMovements } from "@/lib/fundMovements";
-import type { RoutingSuggestion } from "@/types";
+import { isTransactionDueForPayout } from "@/lib/routingRules";
+import type { RoutingSuggestion, RoutingRule } from "@/types";
 
 export function useRoutingEngine() {
   const allTx = useTransactions();
@@ -35,6 +37,7 @@ export function useRoutingEngine() {
   const senderMatrix = useSenderCountryMatrix();
   const receiverMatrix = useReceiverCountryMatrix();
   const providerManual = useProviderManual();
+  const routingRules = useRoutingRules();
   const { weightsMap, isLoading: weightsLoading } = useScoringWeightsMap();
 
   const isLoading =
@@ -49,6 +52,7 @@ export function useRoutingEngine() {
     senderMatrix.isLoading ||
     receiverMatrix.isLoading ||
     providerManual.isLoading ||
+    routingRules.isLoading ||
     weightsLoading;
 
   const error =
@@ -62,13 +66,28 @@ export function useRoutingEngine() {
     flowTargets.error ||
     senderMatrix.error ||
     receiverMatrix.error ||
-    providerManual.error;
+    providerManual.error ||
+    routingRules.error;
 
-  const pendingPayouts = useMemo(
-    () =>
-      (allTx.data ?? []).filter((t) => t.status === "pending_payout"),
+  /** All pending_payout transactions (before routing rules filter) */
+  const allPendingPayouts = useMemo(
+    () => (allTx.data ?? []).filter((t) => t.status === "pending_payout"),
     [allTx.data]
   );
+
+  /** Only transactions that are due for payout today per routing rules */
+  const pendingPayouts = useMemo(() => {
+    const rules = routingRules.data ?? [];
+    if (rules.length === 0) return allPendingPayouts; // no rules = route all
+    return allPendingPayouts.filter((tx) => isTransactionDueForPayout(tx, rules));
+  }, [allPendingPayouts, routingRules.data]);
+
+  /** Transactions held back by routing rules (not yet due) */
+  const heldBackPayouts = useMemo(() => {
+    const rules = routingRules.data ?? [];
+    if (rules.length === 0) return [];
+    return allPendingPayouts.filter((tx) => !isTransactionDueForPayout(tx, rules));
+  }, [allPendingPayouts, routingRules.data]);
 
   const results = useMemo(() => {
     if (
@@ -147,11 +166,14 @@ export function useRoutingEngine() {
 
   return {
     pendingPayouts,
+    heldBackPayouts,
+    allPendingPayouts,
     suggestions: results,
     balances: balances.data ?? [],
     routingProviders,
     flowTargetProgress,
     fundMovements,
+    routingRules: routingRules.data ?? [],
     isLoading,
     error,
   };

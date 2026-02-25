@@ -1,14 +1,15 @@
 import { useMemo } from "react";
 import { useRoutingEngine } from "@/hooks/useRoutingEngine";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Clock } from "lucide-react";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { BalanceCards } from "@/components/dashboard/BalanceCards";
 import { PayoutsTable } from "@/components/dashboard/PayoutsTable";
 import { FlowTargetCards } from "@/components/dashboard/FlowTargetCards";
 import { FundMovementsPanel } from "@/components/dashboard/FundMovementsPanel";
+import { Card, CardContent } from "@/components/ui/card";
 
 const Dashboard = () => {
-  const { pendingPayouts, suggestions, balances, routingProviders, flowTargetProgress, fundMovements, isLoading, error } = useRoutingEngine();
+  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, routingProviders, flowTargetProgress, fundMovements, routingRules, isLoading, error } = useRoutingEngine();
 
   /** Compute allocated amounts per provider+currency from top suggestions */
   const allocated = useMemo(() => {
@@ -43,6 +44,20 @@ const Dashboard = () => {
       </div>
 
       <DashboardStats transactions={pendingPayouts} suggestions={suggestions} isLoading={isLoading} />
+
+      {heldBackPayouts.length > 0 && (
+        <Card className="border-dashed border-muted-foreground/30">
+          <CardContent className="py-3 px-4 flex items-center gap-2 text-sm text-muted-foreground">
+            <Clock className="h-4 w-4 shrink-0" />
+            <span>
+              <strong>{heldBackPayouts.length}</strong> pending payout{heldBackPayouts.length !== 1 ? "s" : ""} held back by routing rules (
+              ${heldBackPayouts.reduce((s, t) => s + t.usdValue, 0).toLocaleString()} USD).
+              Total pending: {allPendingPayouts.length}, routing today: {pendingPayouts.length}.
+            </span>
+          </CardContent>
+        </Card>
+      )}
+
       {flowTargetProgress.length > 0 && (
         <FlowTargetCards targets={flowTargetProgress} isLoading={isLoading} />
       )}
