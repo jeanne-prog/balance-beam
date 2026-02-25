@@ -1,10 +1,11 @@
 import { useRoutingEngine } from "@/hooks/useRoutingEngine";
 import { AlertCircle } from "lucide-react";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
+import { BalanceCards } from "@/components/dashboard/BalanceCards";
 import { PayoutsTable } from "@/components/dashboard/PayoutsTable";
 
 const Dashboard = () => {
-  const { pendingPayouts, suggestions, isLoading, error } = useRoutingEngine();
+  const { pendingPayouts, suggestions, balances, isLoading, error } = useRoutingEngine();
 
   if (error) {
     return (
@@ -25,6 +26,7 @@ const Dashboard = () => {
       </div>
 
       <DashboardStats transactions={pendingPayouts} suggestions={suggestions} isLoading={isLoading} />
+      <BalanceCards balances={balances} isLoading={isLoading} />
       <PayoutsTable transactions={pendingPayouts} suggestions={suggestions} isLoading={isLoading} />
     </div>
   );
