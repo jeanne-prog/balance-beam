@@ -34,24 +34,16 @@ interface Props {
   routingRules?: RoutingRule[];
   isLoading: boolean;
   onRelease?: (txId: string) => void;
+  overrides?: Map<string, string>;
+  onOverride?: (txId: string, value: string) => void;
 }
 
-export function PayoutsTable({ transactions, heldBackTransactions = [], suggestions, routingRules = [], isLoading, onRelease }: Props) {
+export function PayoutsTable({ transactions, heldBackTransactions = [], suggestions, routingRules = [], isLoading, onRelease, overrides = new Map(), onOverride }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  /** Manual overrides: transactionId → "PROVIDER|RAIL" */
-  const [overrides, setOverrides] = useState<Map<string, string>>(new Map());
 
   const handleOverride = useCallback((txId: string, value: string) => {
-    setOverrides((prev) => {
-      const next = new Map(prev);
-      if (value === "__recommended") {
-        next.delete(txId);
-      } else {
-        next.set(txId, value);
-      }
-      return next;
-    });
-  }, []);
+    onOverride?.(txId, value);
+  }, [onOverride]);
 
   /** Set of transaction IDs that are still held (not released — released ones move to `transactions`) */
   const heldSet = useMemo(() => {
