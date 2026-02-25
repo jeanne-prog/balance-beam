@@ -10,18 +10,19 @@ import {
   useFlowTargets,
   useSenderCountryMatrix,
   useReceiverCountryMatrix,
+  useProviderManual,
 } from "@/hooks/useSheetData";
 import { useScoringWeightsMap } from "@/hooks/useScoringWeights";
 import {
   scoreAllTransactions,
+  getProviderFlowPcts,
   type RoutingContext,
   type ScoringWeights,
   DEFAULT_WEIGHTS,
 } from "@/lib/routingEngine";
-import type { Transaction, RoutingSuggestion } from "@/types";
+import type { RoutingSuggestion } from "@/types";
 
 export function useRoutingEngine() {
-  // Fetch all required data in parallel
   const allTx = useTransactions();
   const balances = useBalances();
   const currencies = useCurrenciesMatrix();
@@ -32,6 +33,7 @@ export function useRoutingEngine() {
   const flowTargets = useFlowTargets();
   const senderMatrix = useSenderCountryMatrix();
   const receiverMatrix = useReceiverCountryMatrix();
+  const providerManual = useProviderManual();
   const { weightsMap, isLoading: weightsLoading } = useScoringWeightsMap();
 
   const isLoading =
@@ -45,6 +47,7 @@ export function useRoutingEngine() {
     flowTargets.isLoading ||
     senderMatrix.isLoading ||
     receiverMatrix.isLoading ||
+    providerManual.isLoading ||
     weightsLoading;
 
   const error =
@@ -57,7 +60,8 @@ export function useRoutingEngine() {
     lightKyc.error ||
     flowTargets.error ||
     senderMatrix.error ||
-    receiverMatrix.error;
+    receiverMatrix.error ||
+    providerManual.error;
 
   const pendingPayouts = useMemo(
     () =>
@@ -84,10 +88,7 @@ export function useRoutingEngine() {
 
     const weights: ScoringWeights = {
       speed_rank_multiplier: weightsMap.get("speed_rank_multiplier") ?? DEFAULT_WEIGHTS.speed_rank_multiplier,
-      balance_sufficient_bonus: weightsMap.get("balance_sufficient_bonus") ?? DEFAULT_WEIGHTS.balance_sufficient_bonus,
-      balance_insufficient_penalty: weightsMap.get("balance_insufficient_penalty") ?? DEFAULT_WEIGHTS.balance_insufficient_penalty,
-      flow_target_under_bonus: weightsMap.get("flow_target_under_bonus") ?? DEFAULT_WEIGHTS.flow_target_under_bonus,
-      flow_target_over_penalty: weightsMap.get("flow_target_over_penalty") ?? DEFAULT_WEIGHTS.flow_target_over_penalty,
+      balance_weight: weightsMap.get("balance_weight") ?? DEFAULT_WEIGHTS.balance_weight,
       pobo_bonus: weightsMap.get("pobo_bonus") ?? DEFAULT_WEIGHTS.pobo_bonus,
       manual_penalty: weightsMap.get("manual_penalty") ?? DEFAULT_WEIGHTS.manual_penalty,
     };
@@ -103,6 +104,7 @@ export function useRoutingEngine() {
       flowTargets: flowTargets.data,
       balances: balances.data,
       allTransactions: allTx.data,
+      providerManual: providerManual.data ?? [],
       weights,
     };
 
@@ -119,9 +121,16 @@ export function useRoutingEngine() {
     flowTargets.data,
     senderMatrix.data,
     receiverMatrix.data,
+    providerManual.data,
     weightsMap,
     pendingPayouts,
   ]);
+
+  /** Provider flow target progress */
+  const flowTargetProgress = useMemo(() => {
+    if (!flowTargets.data || !allTx.data) return [];
+    return getProviderFlowPcts(flowTargets.data, allTx.data);
+  }, [flowTargets.data, allTx.data]);
 
   /** Set of provider IDs from currencies matrix (uppercase) */
   const routingProviders = useMemo(() => {
@@ -130,14 +139,11 @@ export function useRoutingEngine() {
   }, [currencies.data]);
 
   return {
-    /** Transactions with status=pending_payout */
     pendingPayouts,
-    /** Map of transactionId → ranked RoutingSuggestion[] */
     suggestions: results,
-    /** Provider account balances */
     balances: balances.data ?? [],
-    /** Providers from currencies matrix */
     routingProviders,
+    flowTargetProgress,
     isLoading,
     error,
   };

@@ -123,6 +123,14 @@ export interface RoutingSuggestion {
   balanceSufficient: boolean;
   availableTomorrow: boolean;
   flaggedReasons: string[];
+  /** True when this provider was force-assigned to meet a flow target */
+  isFlowTargetAssignment?: boolean;
+}
+
+/** Manual processing info per provider */
+export interface ProviderManual {
+  provider: string;
+  isManual: boolean;
 }
 
 // ── Audit ───────────────────────────────────────────────────

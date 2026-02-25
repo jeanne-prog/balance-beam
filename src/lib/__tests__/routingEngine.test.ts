@@ -101,6 +101,7 @@ function baseCtx(overrides: Partial<RoutingContext> = {}): RoutingContext {
       makeBalance({ provider: "NEO", currency: "EUR", currentBalance: 200000 }),
     ],
     allTransactions: [],
+    providerManual: [],
     ...overrides,
   };
 }

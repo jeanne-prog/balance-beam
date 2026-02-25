@@ -3,9 +3,10 @@ import { AlertCircle } from "lucide-react";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { BalanceCards } from "@/components/dashboard/BalanceCards";
 import { PayoutsTable } from "@/components/dashboard/PayoutsTable";
+import { FlowTargetCards } from "@/components/dashboard/FlowTargetCards";
 
 const Dashboard = () => {
-  const { pendingPayouts, suggestions, balances, routingProviders, isLoading, error } = useRoutingEngine();
+  const { pendingPayouts, suggestions, balances, routingProviders, flowTargetProgress, isLoading, error } = useRoutingEngine();
 
   if (error) {
     return (
@@ -26,6 +27,9 @@ const Dashboard = () => {
       </div>
 
       <DashboardStats transactions={pendingPayouts} suggestions={suggestions} isLoading={isLoading} />
+      {flowTargetProgress.length > 0 && (
+        <FlowTargetCards targets={flowTargetProgress} isLoading={isLoading} />
+      )}
       <BalanceCards balances={balances} routingProviders={routingProviders} isLoading={isLoading} />
       <PayoutsTable transactions={pendingPayouts} suggestions={suggestions} isLoading={isLoading} />
     </div>
