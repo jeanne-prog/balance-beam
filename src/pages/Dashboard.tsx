@@ -5,13 +5,14 @@ import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { BalanceCards } from "@/components/dashboard/BalanceCards";
 import { PayoutsTable } from "@/components/dashboard/PayoutsTable";
 import { FlowTargetCards } from "@/components/dashboard/FlowTargetCards";
+import { FundMovementsPanel } from "@/components/dashboard/FundMovementsPanel";
 
 const Dashboard = () => {
-  const { pendingPayouts, suggestions, balances, routingProviders, flowTargetProgress, isLoading, error } = useRoutingEngine();
+  const { pendingPayouts, suggestions, balances, routingProviders, flowTargetProgress, fundMovements, isLoading, error } = useRoutingEngine();
 
   /** Compute allocated amounts per provider+currency from top suggestions */
   const allocated = useMemo(() => {
-    const map = new Map<string, number>(); // key: "PROVIDER|CURRENCY"
+    const map = new Map<string, number>();
     for (const tx of pendingPayouts) {
       const sugs = suggestions.get(tx.transactionId) ?? [];
       const top = sugs.find((s) => s.score > 0);
@@ -46,6 +47,7 @@ const Dashboard = () => {
         <FlowTargetCards targets={flowTargetProgress} isLoading={isLoading} />
       )}
       <BalanceCards balances={balances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} />
+      <FundMovementsPanel movements={fundMovements} isLoading={isLoading} />
       <PayoutsTable transactions={pendingPayouts} suggestions={suggestions} isLoading={isLoading} />
     </div>
   );
