@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useRoutingEngine } from "@/hooks/useRoutingEngine";
 import { AlertCircle, Clock } from "lucide-react";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
@@ -9,7 +9,11 @@ import { FundMovementsPanel } from "@/components/dashboard/FundMovementsPanel";
 import { Card, CardContent } from "@/components/ui/card";
 
 const Dashboard = () => {
-  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, routingProviders, flowTargetProgress, fundMovements, routingRules, isLoading, error } = useRoutingEngine();
+  const [releasedIds, setReleasedIds] = useState<Set<string>>(new Set());
+  const handleRelease = useCallback((txId: string) => {
+    setReleasedIds((prev) => new Set(prev).add(txId));
+  }, []);
+  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, routingProviders, flowTargetProgress, fundMovements, routingRules, isLoading, error } = useRoutingEngine(releasedIds);
 
   /** Compute allocated amounts per provider+currency from top suggestions */
   const allocated = useMemo(() => {
@@ -63,7 +67,7 @@ const Dashboard = () => {
       )}
       <BalanceCards balances={balances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} />
       <FundMovementsPanel movements={fundMovements} isLoading={isLoading} />
-      <PayoutsTable transactions={pendingPayouts} heldBackTransactions={heldBackPayouts} suggestions={suggestions} routingRules={routingRules} isLoading={isLoading} />
+      <PayoutsTable transactions={pendingPayouts} heldBackTransactions={heldBackPayouts} suggestions={suggestions} routingRules={routingRules} isLoading={isLoading} onRelease={handleRelease} />
     </div>
   );
 };
