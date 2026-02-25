@@ -269,11 +269,21 @@ export function scoreTransaction(
 
     // ── Check if this provider is under flow target ──
     const targetInfo = underTarget.get(providerKey);
-    const isFlowTargetAssignment = !!targetInfo;
 
     // ── Score each rail for this provider ──
     for (const rail of rails) {
-      let score = isFlowTargetAssignment ? 1000 : 100; // Force-assign gets massive base score
+      // Balance check (do it early — it's a hard constraint for flow targets too)
+      const balance = getProviderBalance(
+        ctx.balances,
+        providerKey,
+        tx.receiverCurrency
+      );
+      const balanceSufficient = balance >= tx.receiverAmount;
+
+      // Only force-assign for flow target if balance is sufficient
+      const isFlowTargetAssignment = !!targetInfo && balanceSufficient;
+
+      let score = isFlowTargetAssignment ? 1000 : 100;
       const railFlags: string[] = [];
 
       if (isFlowTargetAssignment) {
@@ -293,13 +303,7 @@ export function scoreTransaction(
         railFlags.push("Non-POBO rail");
       }
 
-      // Balance check (single weight)
-      const balance = getProviderBalance(
-        ctx.balances,
-        providerKey,
-        tx.receiverCurrency
-      );
-      const balanceSufficient = balance >= tx.receiverAmount;
+      // Balance scoring (balance/balanceSufficient already computed above)
       if (balanceSufficient) {
         score += w.balance_weight;
       } else {
