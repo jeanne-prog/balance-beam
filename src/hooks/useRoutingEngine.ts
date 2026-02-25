@@ -20,6 +20,7 @@ import {
   type ScoringWeights,
   DEFAULT_WEIGHTS,
 } from "@/lib/routingEngine";
+import { computeFundMovements } from "@/lib/fundMovements";
 import type { RoutingSuggestion } from "@/types";
 
 export function useRoutingEngine() {
@@ -138,12 +139,19 @@ export function useRoutingEngine() {
     return new Set(currencies.data.map((cr) => cr.provider.toUpperCase()));
   }, [currencies.data]);
 
+  /** Fund movement recommendations */
+  const fundMovements = useMemo(() => {
+    if (!balances.data || !currencies.data || pendingPayouts.length === 0) return [];
+    return computeFundMovements(pendingPayouts, results, balances.data, currencies.data);
+  }, [pendingPayouts, results, balances.data, currencies.data]);
+
   return {
     pendingPayouts,
     suggestions: results,
     balances: balances.data ?? [],
     routingProviders,
     flowTargetProgress,
+    fundMovements,
     isLoading,
     error,
   };
