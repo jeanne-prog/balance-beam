@@ -76,7 +76,7 @@ export function PayoutsTable({ transactions, suggestions, isLoading }: Props) {
                 <TableHead>Sender</TableHead>
                 <TableHead>Beneficiary</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
-                <TableHead className="text-right">USD</TableHead>
+                <TableHead>Destination</TableHead>
                 <TableHead>Top Provider</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
@@ -120,8 +120,8 @@ export function PayoutsTable({ transactions, suggestions, isLoading }: Props) {
                           <TableCell className="text-right font-mono-numbers text-sm">
                             {formatCurrency(tx.receiverAmount, tx.receiverCurrency)}
                           </TableCell>
-                          <TableCell className="text-right font-mono-numbers text-sm text-muted-foreground">
-                            {formatCurrency(tx.usdValue, "USD")}
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">{tx.receiverCountry}</Badge>
                           </TableCell>
                           <TableCell>
                             {top ? (
