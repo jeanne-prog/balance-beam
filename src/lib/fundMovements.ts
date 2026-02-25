@@ -87,8 +87,10 @@ export function computeFundMovements(
   }
 
   const movements: FundMovement[] = [];
+  const allowedCurrencies = new Set(["EUR", "USD"]);
 
   for (const currency of currencySet) {
+    if (!allowedCurrencies.has(currency)) continue;
     // Find POBO providers for this currency with their shortfall
     const poboShortfalls: { provider: string; shortfall: number; rail: CurrencyRail; txCount: number }[] = [];
 
