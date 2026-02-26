@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
@@ -19,8 +19,6 @@ export function useAuth() {
     loading: true,
   });
 
-  const initialised = useRef(false);
-
   const fetchRole = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from("user_roles")
@@ -33,35 +31,29 @@ export function useAuth() {
   useEffect(() => {
     let mounted = true;
 
-    // 1. Get existing session first
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!mounted) return;
+    const applySession = async (session: Session | null) => {
       const user = session?.user ?? null;
       let role: Role | null = null;
+
       if (user) {
         role = await fetchRole(user.id);
       }
+
       if (!mounted) return;
-      initialised.current = true;
       setState({ user, session, role, loading: false });
+    };
+
+    // Subscribe first so we never miss SIGNED_IN after OAuth redirect.
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      void applySession(session);
     });
 
-    // 2. Listen for future changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (!mounted) return;
-        // Skip events until initial session check completes
-        if (!initialised.current) return;
-
-        const user = session?.user ?? null;
-        let role: Role | null = null;
-        if (user) {
-          role = await fetchRole(user.id);
-        }
-        if (!mounted) return;
-        setState({ user, session, role, loading: false });
-      }
-    );
+    // Hydrate initial state.
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      void applySession(session);
+    });
 
     return () => {
       mounted = false;
