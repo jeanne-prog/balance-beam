@@ -14,19 +14,14 @@ import type {
 } from "@/types";
 
 export interface FundMovement {
-  /** Currency to move */
   currency: string;
-  /** Amount to transfer */
   amount: number;
-  /** Source provider (non-POBO, has surplus) */
   fromProvider: string;
-  /** Destination provider (POBO, has shortfall) */
   toProvider: string;
-  /** Number of transactions this would unlock for POBO */
   txCount: number;
-  /** Funding cutoff time (UTC) at the destination provider, if known */
   fundingCutoffUtc: string | null;
-  /** Human-readable reason */
+  /** Minutes until the funding cutoff (null if no cutoff). Negative values are filtered out. */
+  minutesUntilCutoff: number | null;
   reason: string;
 }
 
@@ -35,15 +30,23 @@ function normalize(s: string): string {
 }
 
 /**
- * Compute recommended fund movements to maximize POBO payments.
- *
- * Strategy:
- * 1. Look at all pending transactions and their routing suggestions
- * 2. Find transactions where the top suggestion is non-POBO but a POBO rail exists
- *    at another provider (just lacking balance)
- * 3. Check if the non-POBO provider has surplus funds in that currency
- * 4. Recommend moving the shortfall amount
+ * Parse a HH:MM or HH:MM:SS cutoff string and return minutes until that time today (UTC).
+ * Returns null if the string is unparseable.
  */
+function minutesUntilCutoffToday(cutoffUtc: string): number | null {
+  const parts = cutoffUtc.split(":");
+  if (parts.length < 2) return null;
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  if (isNaN(h) || isNaN(m)) return null;
+
+  const now = new Date();
+  const cutoffMs = Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), h, m, 0
+  );
+  return (cutoffMs - now.getTime()) / 60_000;
+}
+
 export function computeFundMovements(
   pendingPayouts: Transaction[],
   suggestions: Map<string, RoutingSuggestion[]>,
@@ -57,7 +60,7 @@ export function computeFundMovements(
     balanceMap.set(key, (balanceMap.get(key) ?? 0) + b.currentBalance);
   }
 
-  // Build allocated map from top suggestions (what the engine currently assigns)
+  // Build allocated map from top suggestions
   const allocatedMap = new Map<string, number>();
   for (const tx of pendingPayouts) {
     const sugs = suggestions.get(tx.transactionId) ?? [];
@@ -73,14 +76,12 @@ export function computeFundMovements(
   for (const cr of currencyRails) {
     if (cr.isPobo) {
       const key = `${normalize(cr.provider)}|${normalize(cr.currency)}`;
-      // Keep the fastest POBO rail
       if (!poboRails.has(key) || cr.speedRank < poboRails.get(key)!.speedRank) {
         poboRails.set(key, cr);
       }
     }
   }
 
-  // Group: for each currency, find POBO providers that are short and non-POBO providers with surplus
   const currencySet = new Set<string>();
   for (const tx of pendingPayouts) {
     currencySet.add(normalize(tx.receiverCurrency));
@@ -91,7 +92,6 @@ export function computeFundMovements(
 
   for (const currency of currencySet) {
     if (!allowedCurrencies.has(currency)) continue;
-    // Find POBO providers for this currency with their shortfall
     const poboShortfalls: { provider: string; shortfall: number; rail: CurrencyRail; txCount: number }[] = [];
 
     for (const [key, rail] of poboRails) {
@@ -101,7 +101,6 @@ export function computeFundMovements(
       const allocated = allocatedMap.get(key) ?? 0;
       const remaining = balance - allocated;
 
-      // Count how many pending txs could use this POBO provider but can't due to balance
       let unlockedTxCount = 0;
       let additionalNeeded = 0;
 
@@ -109,13 +108,10 @@ export function computeFundMovements(
         if (normalize(tx.receiverCurrency) !== currency) continue;
         const sugs = suggestions.get(tx.transactionId) ?? [];
         const top = sugs.find((s) => s.score > 0);
-        // Transaction is currently NOT routed to this POBO provider
         if (top && normalize(top.provider) !== provider) {
-          // But this POBO provider appears in suggestions (just not top, likely due to balance)
           const poboSug = sugs.find(
             (s) => normalize(s.provider) === provider && s.isPobo && s.score > 0
           );
-          // Or it was disqualified only because of balance
           const poboDisqualified = sugs.find(
             (s) => normalize(s.provider) === provider && s.isPobo && !s.balanceSufficient
           );
@@ -127,7 +123,6 @@ export function computeFundMovements(
       }
 
       if (additionalNeeded > 0) {
-        // How much more this POBO provider needs
         const shortfall = Math.max(0, additionalNeeded - Math.max(0, remaining));
         if (shortfall > 0) {
           poboShortfalls.push({ provider, shortfall, rail, txCount: unlockedTxCount });
@@ -137,7 +132,6 @@ export function computeFundMovements(
 
     if (poboShortfalls.length === 0) continue;
 
-    // Find non-POBO providers with surplus in this currency
     const nonPoboSurplus: { provider: string; surplus: number }[] = [];
     const allProviders = new Set<string>();
     for (const [key] of balanceMap) {
@@ -146,7 +140,6 @@ export function computeFundMovements(
 
     for (const provider of allProviders) {
       const key = `${provider}|${currency}`;
-      // Skip if this provider has POBO rails for this currency
       if (poboRails.has(key)) continue;
       const balance = balanceMap.get(key) ?? 0;
       const allocated = allocatedMap.get(key) ?? 0;
@@ -156,15 +149,21 @@ export function computeFundMovements(
       }
     }
 
-    // Match shortfalls with surpluses
-    // Sort surpluses largest first
     nonPoboSurplus.sort((a, b) => b.surplus - a.surplus);
 
     for (const shortfall of poboShortfalls) {
-      let remaining = shortfall.shortfall;
+      let rem = shortfall.shortfall;
       for (const source of nonPoboSurplus) {
-        if (remaining <= 0 || source.surplus <= 0) break;
-        const moveAmount = Math.min(remaining, source.surplus);
+        if (rem <= 0 || source.surplus <= 0) break;
+        const moveAmount = Math.min(rem, source.surplus);
+
+        const cutoff = shortfall.rail.fundingCutoffUtc;
+        const minsLeft = cutoff ? minutesUntilCutoffToday(cutoff) : null;
+
+        // Skip if cutoff has already passed today
+        if (minsLeft !== null && minsLeft <= 0) {
+          continue;
+        }
 
         movements.push({
           currency,
@@ -172,17 +171,26 @@ export function computeFundMovements(
           fromProvider: source.provider,
           toProvider: shortfall.provider,
           txCount: shortfall.txCount,
-          fundingCutoffUtc: shortfall.rail.fundingCutoffUtc,
+          fundingCutoffUtc: cutoff,
+          minutesUntilCutoff: minsLeft,
           reason: `Move to enable ${shortfall.txCount} POBO payment${shortfall.txCount > 1 ? "s" : ""}`,
         });
 
-        remaining -= moveAmount;
+        rem -= moveAmount;
         source.surplus -= moveAmount;
       }
     }
   }
 
-  // Sort by amount descending
-  movements.sort((a, b) => b.amount - a.amount);
+  // Sort by urgency: soonest cutoff first, then no-cutoff by amount desc
+  movements.sort((a, b) => {
+    const aHasCutoff = a.minutesUntilCutoff !== null;
+    const bHasCutoff = b.minutesUntilCutoff !== null;
+    if (aHasCutoff && bHasCutoff) return a.minutesUntilCutoff! - b.minutesUntilCutoff!;
+    if (aHasCutoff && !bHasCutoff) return -1;
+    if (!aHasCutoff && bHasCutoff) return 1;
+    return b.amount - a.amount;
+  });
+
   return movements;
 }
