@@ -5,12 +5,11 @@ import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { BalanceCards } from "@/components/dashboard/BalanceCards";
 import { PayoutsTable } from "@/components/dashboard/PayoutsTable";
 import { FlowTargetCards } from "@/components/dashboard/FlowTargetCards";
-import { FundMovementsPanel } from "@/components/dashboard/FundMovementsPanel";
+import { LiquidityForecastPanel } from "@/components/dashboard/LiquidityForecastPanel";
 import { Card, CardContent } from "@/components/ui/card";
 
 const Dashboard = () => {
   const [releasedIds, setReleasedIds] = useState<Set<string>>(new Set());
-  /** Manual overrides: transactionId → "PROVIDER|RAIL" */
   const [overrides, setOverrides] = useState<Map<string, string>>(new Map());
   const handleRelease = useCallback((txId: string) => {
     setReleasedIds((prev) => new Set(prev).add(txId));
@@ -18,17 +17,12 @@ const Dashboard = () => {
   const handleOverride = useCallback((txId: string, value: string) => {
     setOverrides((prev) => {
       const next = new Map(prev);
-      if (value === "__recommended") {
-        next.delete(txId);
-      } else {
-        next.set(txId, value);
-      }
+      if (value === "__recommended") { next.delete(txId); } else { next.set(txId, value); }
       return next;
     });
   }, []);
-  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, routingProviders, flowTargetProgress, fundMovements, routingRules, isLoading, error } = useRoutingEngine(releasedIds);
+  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, routingProviders, flowTargetProgress, liquidityForecast, routingRules, isLoading, error } = useRoutingEngine(releasedIds);
 
-  /** Compute allocated amounts per provider+currency using overrides when present */
   const allocated = useMemo(() => {
     const map = new Map<string, number>();
     for (const tx of pendingPayouts) {
@@ -88,7 +82,7 @@ const Dashboard = () => {
       <div className="sticky top-14 z-20 -mx-6 px-6 py-3 bg-background/95 backdrop-blur-sm border-b border-border">
         <BalanceCards balances={balances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} />
       </div>
-      <FundMovementsPanel movements={fundMovements} isLoading={isLoading} />
+      <LiquidityForecastPanel forecast={liquidityForecast} isLoading={isLoading} />
       <PayoutsTable transactions={pendingPayouts} heldBackTransactions={heldBackPayouts} suggestions={suggestions} routingRules={routingRules} isLoading={isLoading} onRelease={handleRelease} overrides={overrides} onOverride={handleOverride} />
     </div>
   );

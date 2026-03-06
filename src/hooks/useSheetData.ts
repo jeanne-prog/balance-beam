@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { readTab, writeTab, appendTab, type TabKey } from "@/lib/sheets";
+import type { CohortRateRow } from "@/lib/fundMovements";
 import type {
   Transaction,
   Balance,
@@ -80,7 +81,7 @@ export function useTransactions(statusFilter?: string) {
       paymentInitiatedAtDate: strOrNull(r.payment_initiated_at_date),
       paymentSentAtDate: strOrNull(r.payment_sent_at_date),
       hasBlockingIssue: parseBool(r.has_blocking_issue),
-      pendingApprovalAtDate: strOrNull(r.submitted_for_approval_at),
+      pendingApprovalAtDate: strOrNull(r.pending_approval_at_date ?? r.submitted_for_approval_at),
       approvedAtDate: strOrNull(r.approved_at),
     }));
     if (statusFilter) return all.filter((t) => t.status === statusFilter);
@@ -205,6 +206,21 @@ export function useProviderManual() {
     raw.map((r) => ({
       provider: str(r.provider_id ?? r.Provider ?? r.provider),
       isManual: parseBool(r.is_manual ?? r["Is Manual"] ?? r.manual),
+    }))
+  );
+}
+
+export function useCohortRates() {
+  return useSheetTab<CohortRateRow>("cohortRates", (raw) =>
+    raw.map((r) => ({
+      cohort_type: str(r.cohort_type),
+      age_bucket: str(r.age_bucket),
+      d0: parseNumber(r.d0),
+      d1: parseNumber(r.d1),
+      d2: parseNumber(r.d2),
+      d3: parseNumber(r.d3),
+      d4: parseNumber(r.d4),
+      d5_plus: parseNumber(r.d5_plus),
     }))
   );
 }
