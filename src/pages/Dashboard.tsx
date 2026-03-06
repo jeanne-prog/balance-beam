@@ -20,7 +20,7 @@ const Dashboard = () => {
       return next;
     });
   }, []);
-  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, routingProviders, flowTargetProgress, liquidityForecast, routingRules, isLoading, error } = useRoutingEngine(releasedIds);
+  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, routingProviders, flowTargetProgress, routingRules, isLoading, error } = useRoutingEngine(releasedIds);
 
   const allocated = useMemo(() => {
     const map = new Map<string, number>();
