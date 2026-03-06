@@ -5,7 +5,6 @@ import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { BalanceCards } from "@/components/dashboard/BalanceCards";
 import { PayoutsTable } from "@/components/dashboard/PayoutsTable";
 import { FlowTargetCards } from "@/components/dashboard/FlowTargetCards";
-import { LiquidityForecastPanel } from "@/components/dashboard/LiquidityForecastPanel";
 import { Card, CardContent } from "@/components/ui/card";
 
 const Dashboard = () => {
