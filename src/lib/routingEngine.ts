@@ -61,6 +61,7 @@ export interface RoutingContext {
   balances: Balance[];
   allTransactions: Transaction[];
   providerManual: ProviderManual[];
+  sepaCountries: Set<string>;
   weights?: ScoringWeights;
 }
 
