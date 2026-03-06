@@ -1,10 +1,13 @@
-// ── Role Model ──────────────────────────────────────────────
+// ── Role Model ────────────────────────────────────────────
 export type Role = "viewer" | "editor" | "admin";
 
-// ── Transaction ─────────────────────────────────────────────
+// ── Transaction ───────────────────────────────────────────
 export type TransactionStatus =
+  | "draft"
+  | "pending_approval"
   | "pending_collection"
   | "collected"
+  | "pending_payout"
   | "payment_initiated"
   | "payment_sent"
   | "cancelled"
@@ -28,13 +31,17 @@ export interface Transaction {
   payoutProviderId: string | null;
   reference: string | null;
   createdAtDate: string | null;
+  /** Date transaction entered pending_approval status (used for draft/pending_approval cohort aging) */
+  pendingApprovalAtDate: string | null;
+  /** Date transaction was approved and entered pending_collection (used for pending_collection cohort aging) */
+  approvedAtDate: string | null;
   collectedAtDate: string | null;
   paymentInitiatedAtDate: string | null;
   paymentSentAtDate: string | null;
   hasBlockingIssue: boolean;
 }
 
-// ── Balance (DB_Accounts) ───────────────────────────────────
+// ── Balance (DB_Accounts) ─────────────────────────────────
 export interface Balance {
   accountId: string;
   accountName: string;
@@ -45,7 +52,7 @@ export interface Balance {
   lastBalanceAt: string;
 }
 
-// ── Provider matrices ───────────────────────────────────────
+// ── Provider matrices ─────────────────────────────────────
 export interface SenderCountryEntry {
   provider: string;
   country: string;
@@ -69,7 +76,7 @@ export interface CurrencyRail {
   holidayCalendar: string;
 }
 
-// ── Banned lists ────────────────────────────────────────────
+// ── Banned lists ──────────────────────────────────────────
 export interface BeneBanned {
   beneficiaryName: string;
   provider: string;
@@ -85,12 +92,12 @@ export interface SwiftCodeBanned {
   provider: string;
 }
 
-// ── Light KYC senders ───────────────────────────────────────
+// ── Light KYC senders ─────────────────────────────────────
 export interface LightKycSender {
   senderName: string;
 }
 
-// ── Routing ─────────────────────────────────────────────────
+// ── Routing ───────────────────────────────────────────────
 export interface RoutingRule {
   sourceCountryCode: string;
   amountUsdMin: number;
@@ -104,7 +111,7 @@ export interface FlowTarget {
   targetPct: number | null;
 }
 
-// ── Routing Decision ────────────────────────────────────────
+// ── Routing Decision ──────────────────────────────────────
 export interface RoutingDecision {
   transactionId: string;
   assignedProvider: string;
@@ -133,7 +140,7 @@ export interface ProviderManual {
   isManual: boolean;
 }
 
-// ── Audit ───────────────────────────────────────────────────
+// ── Audit ─────────────────────────────────────────────────
 export interface AuditEntry {
   timestamp: string;
   userId: string;
