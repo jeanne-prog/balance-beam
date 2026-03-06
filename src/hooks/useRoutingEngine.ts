@@ -125,6 +125,8 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
       manual_penalty: weightsMap.get("manual_penalty") ?? DEFAULT_WEIGHTS.manual_penalty,
     };
 
+    const sepaSet = new Set((sepaCountriesQuery.data ?? []).map((s) => s.countryCode));
+
     const ctx: RoutingContext = {
       currencyRails: currencies.data,
       senderCountryMatrix: senderMatrix.data,
@@ -137,6 +139,7 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
       balances: balances.data,
       allTransactions: allTx.data,
       providerManual: providerManual.data ?? [],
+      sepaCountries: sepaSet,
       weights,
     };
 
