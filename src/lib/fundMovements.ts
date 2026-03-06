@@ -332,6 +332,11 @@ function computeDemandForecast(
   return { confirmedPendingPayout, heldBackDueToday, fromPendingCollection, fromDraftPending, fromNewVolume, total };
 }
 
+// ── Constants ─────────────────────────────────────────────
+
+/** 08:00 UTC — earliest time the team can initiate a transfer */
+const TEAM_START_HOUR_UTC = 8;
+
 // ── Step 4: Urgency ───────────────────────────────────────
 
 function computeMinutesUntilCutoff(cutoffUtc: string, forTomorrow: boolean): number | null {
