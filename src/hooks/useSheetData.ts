@@ -80,6 +80,8 @@ export function useTransactions(statusFilter?: string) {
       paymentInitiatedAtDate: strOrNull(r.payment_initiated_at_date),
       paymentSentAtDate: strOrNull(r.payment_sent_at_date),
       hasBlockingIssue: parseBool(r.has_blocking_issue),
+      pendingApprovalAtDate: strOrNull(r.submitted_for_approval_at),
+      approvedAtDate: strOrNull(r.approved_at),
     }));
     if (statusFilter) return all.filter((t) => t.status === statusFilter);
     return all;
