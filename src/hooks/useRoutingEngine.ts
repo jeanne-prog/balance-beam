@@ -59,6 +59,7 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
     providerManual.isLoading ||
     routingRules.isLoading ||
     cohortRatesQuery.isLoading ||
+    sepaCountriesQuery.isLoading ||
     weightsLoading;
 
   const error =
