@@ -12,7 +12,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ChevronRight, ArrowUpRight, AlertTriangle, Clock, PlayCircle } from "lucide-react";
+import { ChevronRight, ArrowUpRight, AlertTriangle, Clock, PlayCircle, Pause, Play } from "lucide-react";
 import { ProviderBadge } from "./ProviderBadge";
 import { RoutingSuggestionsPanel } from "./RoutingSuggestionsPanel";
 import type { Transaction, RoutingSuggestion, RoutingRule } from "@/types";
@@ -36,9 +36,11 @@ interface Props {
   onRelease?: (txId: string) => void;
   overrides?: Map<string, string>;
   onOverride?: (txId: string, value: string) => void;
+  operatorHeldIds?: Set<string>;
+  onToggleHold?: (txId: string) => void;
 }
 
-export function PayoutsTable({ transactions, heldBackTransactions = [], suggestions, routingRules = [], isLoading, onRelease, overrides = new Map(), onOverride }: Props) {
+export function PayoutsTable({ transactions, heldBackTransactions = [], suggestions, routingRules = [], isLoading, onRelease, overrides = new Map(), onOverride, operatorHeldIds = new Set(), onToggleHold }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const handleOverride = useCallback((txId: string, value: string) => {
@@ -58,8 +60,12 @@ export function PayoutsTable({ transactions, heldBackTransactions = [], suggesti
     return [...allTransactions].sort((a, b) => {
       const aHeld = heldSet.has(a.transactionId);
       const bHeld = heldSet.has(b.transactionId);
-      // Held transactions go to the bottom
+      const aOpHeld = operatorHeldIds.has(a.transactionId);
+      const bOpHeld = operatorHeldIds.has(b.transactionId);
+      // Rule-held transactions go to the bottom
       if (aHeld !== bHeld) return aHeld ? 1 : -1;
+      // Operator-held go just above rule-held
+      if (aOpHeld !== bOpHeld) return aOpHeld ? 1 : -1;
       if (a.hasBlockingIssue !== b.hasBlockingIssue) return a.hasBlockingIssue ? -1 : 1;
       const aTop = (suggestions.get(a.transactionId)?.[0]?.score ?? 0);
       const bTop = (suggestions.get(b.transactionId)?.[0]?.score ?? 0);
@@ -67,7 +73,7 @@ export function PayoutsTable({ transactions, heldBackTransactions = [], suggesti
       if (bTop === 0 && aTop !== 0) return 1;
       return b.usdValue - a.usdValue;
     });
-  }, [allTransactions, suggestions, heldSet]);
+  }, [allTransactions, suggestions, heldSet, operatorHeldIds]);
 
   if (isLoading) {
     return (
@@ -105,14 +111,16 @@ export function PayoutsTable({ transactions, heldBackTransactions = [], suggesti
                 <TableHead>Recommended</TableHead>
                 <TableHead className="w-[180px]">Selected</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="w-[70px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {sorted.map((tx) => {
                 const isHeld = heldSet.has(tx.transactionId);
+                const isOperatorHeld = operatorHeldIds.has(tx.transactionId);
                 const sugs = suggestions.get(tx.transactionId) ?? [];
                 const top = sugs.find((s) => s.score > 0);
-                const noRoute = !isHeld && (sugs.length === 0 || sugs.every((s) => s.score === 0));
+                const noRoute = !isHeld && !isOperatorHeld && (sugs.length === 0 || sugs.every((s) => s.score === 0));
                 const isOpen = expandedId === tx.transactionId;
                 const dueDate = isHeld ? getTransactionDueDate(tx, routingRules) : null;
 
@@ -141,8 +149,8 @@ export function PayoutsTable({ transactions, heldBackTransactions = [], suggesti
                         <TableRow className={cn(
                           "cursor-pointer transition-colors",
                           isOpen && "bg-muted/50",
-                          isHeld && "opacity-60",
-                          tx.hasBlockingIssue && "bg-[hsl(var(--status-danger-bg))]",
+                          (isHeld || isOperatorHeld) && "opacity-60",
+                          tx.hasBlockingIssue && !isOperatorHeld && "bg-[hsl(var(--status-danger-bg))]",
                           noRoute && !tx.hasBlockingIssue && "bg-[hsl(var(--status-warning-bg))]"
                         )}>
                           <TableCell className="px-2">
@@ -171,7 +179,7 @@ export function PayoutsTable({ transactions, heldBackTransactions = [], suggesti
                             <Badge variant="outline" className="text-xs">{tx.receiverCountry}</Badge>
                           </TableCell>
                           <TableCell>
-                            {isHeld ? (
+                            {(isHeld || isOperatorHeld) ? (
                               <span className="text-xs text-muted-foreground">—</span>
                             ) : top ? (
                               <div className="flex items-center gap-1.5">
@@ -185,7 +193,7 @@ export function PayoutsTable({ transactions, heldBackTransactions = [], suggesti
                             )}
                           </TableCell>
                           <TableCell onClick={(e) => e.stopPropagation()}>
-                            {isHeld ? (
+                            {(isHeld || isOperatorHeld) ? (
                               <span className="text-xs text-muted-foreground">—</span>
                             ) : providerOptions.length > 0 ? (
                               <Select
@@ -250,6 +258,11 @@ export function PayoutsTable({ transactions, heldBackTransactions = [], suggesti
                                   Release
                                 </Button>
                               </div>
+                            ) : isOperatorHeld ? (
+                              <Badge variant="outline" className="text-xs border-muted-foreground/40 text-muted-foreground">
+                                <Pause className="h-3 w-3 mr-1" />
+                                Held
+                              </Badge>
                             ) : tx.hasBlockingIssue ? (
                               <Badge variant="destructive" className="text-xs">Blocked</Badge>
                             ) : noRoute ? (
@@ -258,11 +271,30 @@ export function PayoutsTable({ transactions, heldBackTransactions = [], suggesti
                               <Badge className="text-xs status-positive border-0">Ready</Badge>
                             )}
                           </TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            {!isHeld && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={cn(
+                                  "h-6 px-2 text-xs",
+                                  isOperatorHeld ? "text-primary hover:text-primary" : "text-muted-foreground hover:text-foreground"
+                                )}
+                                onClick={() => onToggleHold?.(tx.transactionId)}
+                              >
+                                {isOperatorHeld ? (
+                                  <><Play className="h-3 w-3 mr-1" />Release</>
+                                ) : (
+                                  <><Pause className="h-3 w-3 mr-1" />Hold</>
+                                )}
+                              </Button>
+                            )}
+                          </TableCell>
                         </TableRow>
                       </CollapsibleTrigger>
                       <CollapsibleContent asChild>
                         <tr>
-                          <td colSpan={9} className="p-0 border-b bg-muted/30">
+                          <td colSpan={10} className="p-0 border-b bg-muted/30">
                             <RoutingSuggestionsPanel suggestions={sugs} />
                           </td>
                         </tr>

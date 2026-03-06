@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 const Dashboard = () => {
   const [releasedIds, setReleasedIds] = useState<Set<string>>(new Set());
   const [overrides, setOverrides] = useState<Map<string, string>>(new Map());
+  const [operatorHeldIds, setOperatorHeldIds] = useState<Set<string>>(new Set());
   const handleRelease = useCallback((txId: string) => {
     setReleasedIds((prev) => new Set(prev).add(txId));
   }, []);
@@ -20,11 +21,19 @@ const Dashboard = () => {
       return next;
     });
   }, []);
-  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, routingProviders, flowTargetProgress, routingRules, isLoading, error } = useRoutingEngine(releasedIds);
+  const handleToggleHold = useCallback((txId: string) => {
+    setOperatorHeldIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(txId)) { next.delete(txId); } else { next.add(txId); }
+      return next;
+    });
+  }, []);
+  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, routingProviders, flowTargetProgress, routingRules, isLoading, error } = useRoutingEngine(releasedIds, operatorHeldIds);
 
   const allocated = useMemo(() => {
     const map = new Map<string, number>();
     for (const tx of pendingPayouts) {
+      if (operatorHeldIds.has(tx.transactionId)) continue;
       const sugs = suggestions.get(tx.transactionId) ?? [];
       const overrideKey = overrides.get(tx.transactionId);
       let selected: { provider: string } | undefined;
@@ -40,7 +49,7 @@ const Dashboard = () => {
       }
     }
     return map;
-  }, [pendingPayouts, suggestions, overrides]);
+  }, [pendingPayouts, suggestions, overrides, operatorHeldIds]);
 
   if (error) {
     return (
@@ -82,7 +91,7 @@ const Dashboard = () => {
         <BalanceCards balances={balances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} />
       </div>
       
-      <PayoutsTable transactions={pendingPayouts} heldBackTransactions={heldBackPayouts} suggestions={suggestions} routingRules={routingRules} isLoading={isLoading} onRelease={handleRelease} overrides={overrides} onOverride={handleOverride} />
+      <PayoutsTable transactions={pendingPayouts} heldBackTransactions={heldBackPayouts} suggestions={suggestions} routingRules={routingRules} isLoading={isLoading} onRelease={handleRelease} overrides={overrides} onOverride={handleOverride} operatorHeldIds={operatorHeldIds} onToggleHold={handleToggleHold} />
     </div>
   );
 };
