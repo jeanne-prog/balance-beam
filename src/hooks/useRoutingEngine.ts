@@ -13,6 +13,7 @@ import {
   useProviderManual,
   useRoutingRules,
   useCohortRates,
+  useSepaCountries,
 } from "@/hooks/useSheetData";
 import { useScoringWeightsMap } from "@/hooks/useScoringWeights";
 import {
@@ -41,6 +42,7 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
   const providerManual = useProviderManual();
   const routingRules = useRoutingRules();
   const cohortRatesQuery = useCohortRates();
+  const sepaCountriesQuery = useSepaCountries();
   const { weightsMap, isLoading: weightsLoading } = useScoringWeightsMap();
 
   const isLoading =
@@ -57,6 +59,7 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
     providerManual.isLoading ||
     routingRules.isLoading ||
     cohortRatesQuery.isLoading ||
+    sepaCountriesQuery.isLoading ||
     weightsLoading;
 
   const error =
@@ -122,6 +125,8 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
       manual_penalty: weightsMap.get("manual_penalty") ?? DEFAULT_WEIGHTS.manual_penalty,
     };
 
+    const sepaSet = new Set((sepaCountriesQuery.data ?? []).map((s) => s.countryCode));
+
     const ctx: RoutingContext = {
       currencyRails: currencies.data,
       senderCountryMatrix: senderMatrix.data,
@@ -134,6 +139,7 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
       balances: balances.data,
       allTransactions: allTx.data,
       providerManual: providerManual.data ?? [],
+      sepaCountries: sepaSet,
       weights,
     };
 
@@ -151,6 +157,7 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
     senderMatrix.data,
     receiverMatrix.data,
     providerManual.data,
+    sepaCountriesQuery.data,
     weightsMap,
     pendingPayouts,
     operatorHeldIds,

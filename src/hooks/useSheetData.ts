@@ -225,6 +225,12 @@ export function useCohortRates() {
   );
 }
 
+export function useSepaCountries() {
+  return useSheetTab<{ countryCode: string }>("sepaCountries", (raw) =>
+    raw.map((r) => ({ countryCode: str(r.country_code).toUpperCase() }))
+  );
+}
+
 /* ── Mutations ───────────────────────────────────────────── */
 
 export function useWriteSheet() {

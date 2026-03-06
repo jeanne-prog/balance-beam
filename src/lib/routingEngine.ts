@@ -61,6 +61,7 @@ export interface RoutingContext {
   balances: Balance[];
   allTransactions: Transaction[];
   providerManual: ProviderManual[];
+  sepaCountries: Set<string>;
   weights?: ScoringWeights;
 }
 
@@ -272,6 +273,11 @@ export function scoreTransaction(
 
     // ── Score each rail for this provider ──
     for (const rail of rails) {
+      // ── Hard constraint: SEPA rail requires SEPA country ──
+      if (rail.rail === "SEPA" && tx.receiverCountry && ctx.sepaCountries.size > 0 && !ctx.sepaCountries.has(normalize(tx.receiverCountry))) {
+        continue;
+      }
+
       // Balance check (do it early — it's a hard constraint for flow targets too)
       const balance = getProviderBalance(
         ctx.balances,

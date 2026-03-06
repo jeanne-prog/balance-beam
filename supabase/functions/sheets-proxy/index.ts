@@ -21,6 +21,7 @@ const TABS = {
   flowTargets: "flow_targets",
   providerManual: "provider_manual",
   cohortRates: "cohort_rates",
+  sepaCountries: "sepa_countries",
 } as const;
 
 type TabKey = keyof typeof TABS;
