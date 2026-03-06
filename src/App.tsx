@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Pipeline from "./pages/Pipeline";
 import Audit from "./pages/Audit";
+import Liquidity from "./pages/Liquidity";
 import Providers from "./pages/admin/Providers";
 import Rules from "./pages/admin/Rules";
 import Beneficiaries from "./pages/admin/Beneficiaries";
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/liquidity" element={<Liquidity />} />
               <Route path="/pipeline" element={<Pipeline />} />
               <Route path="/audit" element={<Audit />} />
               <Route path="/admin/providers" element={<Providers />} />

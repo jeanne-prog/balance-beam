@@ -332,6 +332,11 @@ function computeDemandForecast(
   return { confirmedPendingPayout, heldBackDueToday, fromPendingCollection, fromDraftPending, fromNewVolume, total };
 }
 
+// ── Constants ─────────────────────────────────────────────
+
+/** 08:00 UTC — earliest time the team can initiate a transfer */
+const TEAM_START_HOUR_UTC = 8;
+
 // ── Step 4: Urgency ───────────────────────────────────────
 
 function computeMinutesUntilCutoff(cutoffUtc: string, forTomorrow: boolean): number | null {
@@ -441,7 +446,8 @@ export function computeLiquidityForecast(
       }
 
       if ((shortfallTodayP50 > 0 || shortfallTodayP75 > 0) && !todayCutoffPassed) {
-        const minutesUntilCutoff = fundingCutoffUtc ? computeMinutesUntilCutoff(fundingCutoffUtc, false) : null;
+        // minutesUntilCutoff = time until the Neo initiation deadline (provider's fundingCutoffUtc)
+        const minutesUntilCutoff = (fundingCutoffUtc && fundingCutoffUtc !== "TBC") ? computeMinutesUntilCutoff(fundingCutoffUtc, false) : null;
         const p50Covered = shortfallTodayP50 === 0;
         const p75Covered = shortfallTodayP75 === 0;
         actions.push({
@@ -460,33 +466,45 @@ export function computeLiquidityForecast(
       }
 
       // ── TOMORROW ──
-      const provDemandTomorrowP50 = demandTomorrowP50 * share;
-      const provDemandTomorrowP75 = demandTomorrowP75 * share;
-      const balanceAfterToday = Math.max(0, remainingBalance - provDemandTodayP50);
-      const shortfallTomorrowP50 = Math.max(0, provDemandTomorrowP50 - balanceAfterToday);
-      const shortfallTomorrowP75 = Math.max(0, provDemandTomorrowP75 - balanceAfterToday);
+      // Only generate tomorrow-horizon actions for providers whose funding cutoff
+      // is <= TEAM_START_HOUR_UTC (i.e. funds must arrive before the working day starts,
+      // meaning pre-funding is required the day before). Currently only EMQ EUR/GBP.
+      const cutoffHour = fundingCutoffUtc ? parseInt(fundingCutoffUtc.split(":")[0], 10) : null;
+      const needsPreFunding = fundingCutoffUtc != null
+        && fundingCutoffUtc !== "TBC"
+        && cutoffHour != null
+        && !isNaN(cutoffHour)
+        && cutoffHour <= TEAM_START_HOUR_UTC;
 
-      if (shortfallTomorrowP50 > 0 || shortfallTomorrowP75 > 0) {
-        let minutesUntilTomorrowCutoff: number | null = null;
-        if (fundingCutoffUtc) {
-          minutesUntilTomorrowCutoff = computeMinutesUntilCutoff(fundingCutoffUtc, true);
-        }
-        if (minutesUntilTomorrowCutoff === null || minutesUntilTomorrowCutoff > 0) {
-          const p50Covered = shortfallTomorrowP50 === 0;
-          const p75Covered = shortfallTomorrowP75 === 0;
-          actions.push({
-            currency, amountP50: shortfallTomorrowP50, amountP75: shortfallTomorrowP75,
-            fromProvider: "NEO", toProvider: provider, horizon: "tomorrow",
-            demandBreakdown: {
-              confirmedPendingPayout: forecastTomorrow.confirmedPendingPayout * share,
-              heldBackDueToday: forecastTomorrow.heldBackDueToday * share,
-              fromPendingCollection: forecastTomorrow.fromPendingCollection * share,
-              fromDraftPending: forecastTomorrow.fromDraftPending * share,
-              fromNewVolume: forecastTomorrow.fromNewVolume * share,
-            },
-            fundingCutoffUtc, minutesUntilCutoff: minutesUntilTomorrowCutoff, cutoffIsTomorrow: true,
-            urgency: getUrgency(minutesUntilTomorrowCutoff, p50Covered), p50Covered, p75Covered,
-          });
+      if (needsPreFunding) {
+        const provDemandTomorrowP50 = demandTomorrowP50 * share;
+        const provDemandTomorrowP75 = demandTomorrowP75 * share;
+        const balanceAfterToday = Math.max(0, remainingBalance - provDemandTodayP50);
+        const shortfallTomorrowP50 = Math.max(0, provDemandTomorrowP50 - balanceAfterToday);
+        const shortfallTomorrowP75 = Math.max(0, provDemandTomorrowP75 - balanceAfterToday);
+
+        if (shortfallTomorrowP50 > 0 || shortfallTomorrowP75 > 0) {
+          let minutesUntilTomorrowCutoff: number | null = null;
+          if (fundingCutoffUtc) {
+            minutesUntilTomorrowCutoff = computeMinutesUntilCutoff(fundingCutoffUtc, true);
+          }
+          if (minutesUntilTomorrowCutoff === null || minutesUntilTomorrowCutoff > 0) {
+            const p50Covered = shortfallTomorrowP50 === 0;
+            const p75Covered = shortfallTomorrowP75 === 0;
+            actions.push({
+              currency, amountP50: shortfallTomorrowP50, amountP75: shortfallTomorrowP75,
+              fromProvider: "NEO", toProvider: provider, horizon: "tomorrow",
+              demandBreakdown: {
+                confirmedPendingPayout: forecastTomorrow.confirmedPendingPayout * share,
+                heldBackDueToday: forecastTomorrow.heldBackDueToday * share,
+                fromPendingCollection: forecastTomorrow.fromPendingCollection * share,
+                fromDraftPending: forecastTomorrow.fromDraftPending * share,
+                fromNewVolume: forecastTomorrow.fromNewVolume * share,
+              },
+              fundingCutoffUtc, minutesUntilCutoff: minutesUntilTomorrowCutoff, cutoffIsTomorrow: true,
+              urgency: getUrgency(minutesUntilTomorrowCutoff, p50Covered), p50Covered, p75Covered,
+            });
+          }
         }
       }
     }

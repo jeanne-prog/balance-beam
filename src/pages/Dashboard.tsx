@@ -5,7 +5,6 @@ import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { BalanceCards } from "@/components/dashboard/BalanceCards";
 import { PayoutsTable } from "@/components/dashboard/PayoutsTable";
 import { FlowTargetCards } from "@/components/dashboard/FlowTargetCards";
-import { LiquidityForecastPanel } from "@/components/dashboard/LiquidityForecastPanel";
 import { Card, CardContent } from "@/components/ui/card";
 
 const Dashboard = () => {
@@ -21,7 +20,7 @@ const Dashboard = () => {
       return next;
     });
   }, []);
-  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, routingProviders, flowTargetProgress, liquidityForecast, routingRules, isLoading, error } = useRoutingEngine(releasedIds);
+  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, routingProviders, flowTargetProgress, routingRules, isLoading, error } = useRoutingEngine(releasedIds);
 
   const allocated = useMemo(() => {
     const map = new Map<string, number>();
@@ -82,7 +81,7 @@ const Dashboard = () => {
       <div className="sticky top-14 z-20 -mx-6 px-6 py-3 bg-background/95 backdrop-blur-sm border-b border-border">
         <BalanceCards balances={balances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} />
       </div>
-      <LiquidityForecastPanel forecast={liquidityForecast} isLoading={isLoading} />
+      
       <PayoutsTable transactions={pendingPayouts} heldBackTransactions={heldBackPayouts} suggestions={suggestions} routingRules={routingRules} isLoading={isLoading} onRelease={handleRelease} overrides={overrides} onOverride={handleOverride} />
     </div>
   );

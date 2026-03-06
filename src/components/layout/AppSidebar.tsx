@@ -11,12 +11,14 @@ import {
   ArrowRightLeft,
   SlidersHorizontal,
   Lock,
+  TrendingUp,
 } from "lucide-react";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const mainNav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/liquidity", label: "Liquidity", icon: TrendingUp },
   { to: "/pipeline", label: "Pipeline", icon: Clock },
   { to: "/audit", label: "Audit Log", icon: FileText },
 ];
