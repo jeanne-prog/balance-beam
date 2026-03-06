@@ -20,6 +20,7 @@ const TABS = {
   lightKycSenders: "light_KYC_senders",
   flowTargets: "flow_targets",
   providerManual: "provider_manual",
+  cohortRates: "cohort_rates",
 } as const;
 
 type TabKey = keyof typeof TABS;
