@@ -42,6 +42,7 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
   const providerManual = useProviderManual();
   const routingRules = useRoutingRules();
   const cohortRatesQuery = useCohortRates();
+  const sepaCountriesQuery = useSepaCountries();
   const { weightsMap, isLoading: weightsLoading } = useScoringWeightsMap();
 
   const isLoading =
