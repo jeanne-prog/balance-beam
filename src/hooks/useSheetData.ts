@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { readTab, writeTab, appendTab, type TabKey } from "@/lib/sheets";
+import type { CohortRateRow } from "@/lib/fundMovements";
 import type {
   Transaction,
   Balance,
