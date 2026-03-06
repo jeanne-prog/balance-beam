@@ -153,6 +153,7 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
     providerManual.data,
     weightsMap,
     pendingPayouts,
+    operatorHeldIds,
   ]);
 
   /** Provider flow target progress */
