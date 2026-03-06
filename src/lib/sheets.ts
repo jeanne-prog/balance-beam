@@ -19,6 +19,7 @@ export const TAB_KEYS = [
   "flowTargets",
   "providerManual",
   "cohortRates",
+  "sepaCountries",
 ] as const;
 
 export type TabKey = (typeof TAB_KEYS)[number];

@@ -157,6 +157,7 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
     senderMatrix.data,
     receiverMatrix.data,
     providerManual.data,
+    sepaCountriesQuery.data,
     weightsMap,
     pendingPayouts,
     operatorHeldIds,
