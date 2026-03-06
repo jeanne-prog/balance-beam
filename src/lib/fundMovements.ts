@@ -446,7 +446,8 @@ export function computeLiquidityForecast(
       }
 
       if ((shortfallTodayP50 > 0 || shortfallTodayP75 > 0) && !todayCutoffPassed) {
-        const minutesUntilCutoff = fundingCutoffUtc ? computeMinutesUntilCutoff(fundingCutoffUtc, false) : null;
+        // minutesUntilCutoff = time until the Neo initiation deadline (provider's fundingCutoffUtc)
+        const minutesUntilCutoff = (fundingCutoffUtc && fundingCutoffUtc !== "TBC") ? computeMinutesUntilCutoff(fundingCutoffUtc, false) : null;
         const p50Covered = shortfallTodayP50 === 0;
         const p75Covered = shortfallTodayP75 === 0;
         actions.push({

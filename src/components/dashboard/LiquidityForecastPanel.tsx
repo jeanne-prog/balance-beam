@@ -116,16 +116,15 @@ export function LiquidityForecastPanel({ forecast, isLoading }: Props) {
     );
   }
 
-  if (forecast.length === 0) return null;
+  const visible = forecast.filter(
+    f => f.demandTodayP50 > 0 || f.demandTomorrowP50 > 0 || f.actions.length > 0
+  );
+
+  if (visible.length === 0) return null;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-        <TrendingUp className="h-4 w-4" />
-        Liquidity Forecast
-      </div>
-
-      {forecast.map((f) => (
+      {visible.map((f) => (
         <Card key={f.currency}>
           <CardContent className="pt-4 pb-3 space-y-3">
             {/* Demand summary */}
