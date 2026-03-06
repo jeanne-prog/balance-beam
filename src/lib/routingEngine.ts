@@ -346,7 +346,8 @@ export function scoreTransaction(
  */
 export function scoreAllTransactions(
   pendingTransactions: Transaction[],
-  ctx: RoutingContext
+  ctx: RoutingContext,
+  heldTransactionIds?: Set<string>
 ): Map<string, RoutingSuggestion[]> {
   // Sort oldest collected first
   const sorted = [...pendingTransactions].sort((a, b) => {
