@@ -27,7 +27,7 @@ import { isTransactionDueForPayout } from "@/lib/routingRules";
 import type { RoutingSuggestion, RoutingRule } from "@/types";
 import type { LiquidityForecast } from "@/lib/fundMovements";
 
-export function useRoutingEngine(releasedIds: Set<string> = new Set()) {
+export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorHeldIds: Set<string> = new Set()) {
   const allTx = useTransactions();
   const balances = useBalances();
   const currencies = useCurrenciesMatrix();
@@ -137,7 +137,7 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set()) {
       weights,
     };
 
-    return scoreAllTransactions(pendingPayouts, ctx);
+    return scoreAllTransactions(pendingPayouts, ctx, operatorHeldIds);
   }, [
     isLoading,
     allTx.data,
@@ -153,6 +153,7 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set()) {
     providerManual.data,
     weightsMap,
     pendingPayouts,
+    operatorHeldIds,
   ]);
 
   /** Provider flow target progress */

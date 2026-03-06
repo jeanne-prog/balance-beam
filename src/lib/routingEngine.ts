@@ -346,7 +346,8 @@ export function scoreTransaction(
  */
 export function scoreAllTransactions(
   pendingTransactions: Transaction[],
-  ctx: RoutingContext
+  ctx: RoutingContext,
+  heldTransactionIds?: Set<string>
 ): Map<string, RoutingSuggestion[]> {
   // Sort oldest collected first
   const sorted = [...pendingTransactions].sort((a, b) => {
@@ -365,6 +366,12 @@ export function scoreAllTransactions(
   const results = new Map<string, RoutingSuggestion[]>();
 
   for (const tx of sorted) {
+    // Held transactions: skip scoring/allocation, return empty suggestions
+    if (heldTransactionIds?.has(tx.transactionId)) {
+      results.set(tx.transactionId, []);
+      continue;
+    }
+
     // Score with a context that uses remaining balances
     const ctxWithRemaining: RoutingContext = {
       ...ctx,
@@ -374,8 +381,9 @@ export function scoreAllTransactions(
     results.set(tx.transactionId, suggestions);
 
     // Deduct from remaining balance for the top eligible suggestion
+    // Blocked transactions are scored but must not consume balance
     const top = suggestions.find((s) => s.score > 0 && s.balanceSufficient);
-    if (top) {
+    if (top && !tx.hasBlockingIssue) {
       const key = `${normalize(top.provider)}|${normalize(tx.receiverCurrency)}`;
       const cur = remainingBalances.get(key) ?? 0;
       remainingBalances.set(key, cur - tx.receiverAmount);
