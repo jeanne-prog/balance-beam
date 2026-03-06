@@ -137,7 +137,7 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
       weights,
     };
 
-    return scoreAllTransactions(pendingPayouts, ctx);
+    return scoreAllTransactions(pendingPayouts, ctx, operatorHeldIds);
   }, [
     isLoading,
     allTx.data,
