@@ -36,6 +36,8 @@ function makeTx(overrides: Partial<Transaction> = {}): Transaction {
     paymentInitiatedAtDate: null,
     paymentSentAtDate: null,
     hasBlockingIssue: false,
+    pendingApprovalAtDate: null,
+    approvedAtDate: null,
     ...overrides,
   };
 }
