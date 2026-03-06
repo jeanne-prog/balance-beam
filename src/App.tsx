@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Pipeline from "./pages/Pipeline";
 import Audit from "./pages/Audit";
+import Liquidity from "./pages/Liquidity";
 import Providers from "./pages/admin/Providers";
 import Rules from "./pages/admin/Rules";
 import Beneficiaries from "./pages/admin/Beneficiaries";
