@@ -210,6 +210,21 @@ export function useProviderManual() {
   );
 }
 
+export function useCohortRates() {
+  return useSheetTab<CohortRateRow>("cohortRates", (raw) =>
+    raw.map((r) => ({
+      cohort_type: str(r.cohort_type),
+      age_bucket: str(r.age_bucket),
+      d0: parseNumber(r.d0),
+      d1: parseNumber(r.d1),
+      d2: parseNumber(r.d2),
+      d3: parseNumber(r.d3),
+      d4: parseNumber(r.d4),
+      d5_plus: parseNumber(r.d5_plus),
+    }))
+  );
+}
+
 /* ── Mutations ───────────────────────────────────────────── */
 
 export function useWriteSheet() {

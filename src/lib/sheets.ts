@@ -18,6 +18,7 @@ export const TAB_KEYS = [
   "lightKycSenders",
   "flowTargets",
   "providerManual",
+  "cohortRates",
 ] as const;
 
 export type TabKey = (typeof TAB_KEYS)[number];
