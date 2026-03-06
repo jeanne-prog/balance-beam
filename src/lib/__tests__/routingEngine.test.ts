@@ -104,6 +104,7 @@ function baseCtx(overrides: Partial<RoutingContext> = {}): RoutingContext {
     ],
     allTransactions: [],
     providerManual: [],
+    sepaCountries: new Set<string>(),
     ...overrides,
   };
 }
