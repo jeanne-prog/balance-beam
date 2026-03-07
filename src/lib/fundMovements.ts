@@ -396,6 +396,9 @@ function computeDemandForecast(
   avgDailyVolume: Map<string, number>,
   cohortRates: CohortRates,
 ): DemandForecast {
+  const cur = normalize(currency);
+  // For today horizon: EUR and USD use full forecast, all others use confirmed only
+  const confirmedOnly = horizon === "today" && cur !== "EUR" && cur !== "USD";
   const horizonIndex = horizon === "today" ? 0 : 1;
   const today = todayUtc();
   const tomorrow = tomorrowUtc();
