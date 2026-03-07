@@ -128,6 +128,7 @@ export interface FundingAction {
   urgency: "critical" | "high" | "medium" | "low";
   p50Covered: boolean;
   p75Covered: boolean;
+  neoInsufficient: boolean;
 }
 
 export interface LiquidityForecast {
