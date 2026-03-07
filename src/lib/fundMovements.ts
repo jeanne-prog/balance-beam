@@ -552,6 +552,9 @@ export function computeLiquidityForecast(
     const actions: FundingAction[] = [];
     const now = new Date();
 
+    // Compute Neo effective balance for this currency to cap transfers
+    let neoRemaining = balanceMap.get(`NEO|${currency}`) ?? 0;
+
     for (const provider of providersForCurrency) {
       const provKey = `${provider}|${currency}`;
       const currentBalance = balanceMap.get(provKey) ?? 0;
