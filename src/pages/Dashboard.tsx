@@ -96,20 +96,7 @@ const Dashboard = () => {
         </p>
       </div>
 
-      <DashboardStats transactions={pendingPayouts} suggestions={suggestions} isLoading={isLoading} />
-
-      {fundingGaps.length > 0 && (
-        <div className="flex items-center gap-1.5 text-sm text-[hsl(var(--status-danger))] flex-wrap">
-          <AlertTriangle className="h-4 w-4 shrink-0" />
-          <span className="font-medium">Funding gap:</span>
-          {fundingGaps.map((g, i) => (
-            <span key={`${g.provider}-${g.currency}`}>
-              {i > 0 && <span className="text-muted-foreground"> · </span>}
-              {g.provider} {g.currency} {formatCurrency(g.gap, g.currency)}
-            </span>
-          ))}
-        </div>
-      )}
+      <DashboardStats transactions={pendingPayouts} suggestions={suggestions} isLoading={isLoading} fundingGaps={fundingGaps} />
 
       {heldBackPayouts.length > 0 && (
         <Card className="border-dashed border-muted-foreground/30">
