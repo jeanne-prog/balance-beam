@@ -404,7 +404,6 @@ function computeDemandForecast(
   const tomorrow = tomorrowUtc();
   const targetDate = horizon === "today" ? today : tomorrow;
   const now = new Date();
-  const cur = normalize(currency);
   const cancellationRate = cohortRates.cancellationRates[cur] ?? cohortRates.cancellationRates["DEFAULT"] ?? 0.15;
 
   let confirmedPendingPayout = 0;
