@@ -1,16 +1,17 @@
 import { useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProviderBadge } from "./ProviderBadge";
 import { Wallet } from "lucide-react";
 import type { Balance } from "@/types";
+import type { IncomingTransferSummary } from "@/lib/fundMovements";
 
 interface Props {
   balances: Balance[];
   routingProviders: Set<string>;
-  /** Allocated amounts per "PROVIDER|CURRENCY" key */
   allocated: Map<string, number>;
   isLoading: boolean;
+  incomingTransfers?: IncomingTransferSummary;
 }
 
 function formatCurrency(amount: number, currency: string) {
@@ -27,7 +28,7 @@ interface ProviderGroup {
   totalUsd: number;
 }
 
-export function BalanceCards({ balances, routingProviders, allocated, isLoading }: Props) {
+export function BalanceCards({ balances, routingProviders, allocated, isLoading, incomingTransfers }: Props) {
   const grouped = useMemo<ProviderGroup[]>(() => {
     const map = new Map<string, { currency: string; balance: number }[]>();
     for (const b of balances) {
@@ -76,6 +77,8 @@ export function BalanceCards({ balances, routingProviders, allocated, isLoading 
                   const allocAmt = allocated.get(allocKey) ?? 0;
                   const remaining = balance - allocAmt;
                   const isShort = allocAmt > 0 && remaining < 0;
+                  const inflightAmt = incomingTransfers?.inflight.get(allocKey) ?? 0;
+                  const plannedAmt = incomingTransfers?.planned.get(allocKey) ?? 0;
                   return (
                     <div key={currency} className="space-y-0.5">
                       <div className="flex items-center justify-between text-sm">
@@ -99,6 +102,22 @@ export function BalanceCards({ balances, routingProviders, allocated, isLoading 
                           </span>
                           <span className={`font-mono-numbers font-medium ${isShort ? "text-[hsl(var(--status-danger))]" : "text-[hsl(var(--status-positive))]"}`}>
                             {formatCurrency(remaining, currency)}
+                          </span>
+                        </div>
+                      )}
+                      {inflightAmt > 0 && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-[hsl(var(--status-positive))]">+ incoming (in transit)</span>
+                          <span className="font-mono-numbers text-[hsl(var(--status-positive))]">
+                            {formatCurrency(inflightAmt, currency)}
+                          </span>
+                        </div>
+                      )}
+                      {plannedAmt > 0 && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-blue-500">+ incoming (planned)</span>
+                          <span className="font-mono-numbers text-blue-500">
+                            {formatCurrency(plannedAmt, currency)}
                           </span>
                         </div>
                       )}

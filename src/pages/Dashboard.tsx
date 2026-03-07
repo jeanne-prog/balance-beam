@@ -1,11 +1,19 @@
 import { useMemo, useState, useCallback } from "react";
 import { useRoutingEngine } from "@/hooks/useRoutingEngine";
-import { AlertCircle, Clock } from "lucide-react";
+import { AlertCircle, Clock, AlertTriangle } from "lucide-react";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { BalanceCards } from "@/components/dashboard/BalanceCards";
 import { PayoutsTable } from "@/components/dashboard/PayoutsTable";
 import { FlowTargetCards } from "@/components/dashboard/FlowTargetCards";
 import { Card, CardContent } from "@/components/ui/card";
+
+function formatCurrency(amount: number, currency: string) {
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency", currency, minimumFractionDigits: 0, maximumFractionDigits: 0,
+    }).format(amount);
+  } catch { return `${amount.toLocaleString()} ${currency}`; }
+}
 
 const Dashboard = () => {
   const [releasedIds, setReleasedIds] = useState<Set<string>>(new Set());
@@ -28,7 +36,7 @@ const Dashboard = () => {
       return next;
     });
   }, []);
-  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, routingProviders, flowTargetProgress, routingRules, isLoading, error } = useRoutingEngine(releasedIds, operatorHeldIds);
+  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, effectiveBalances, incomingTransfers, routingProviders, flowTargetProgress, routingRules, isLoading, error } = useRoutingEngine(releasedIds, operatorHeldIds);
 
   const allocated = useMemo(() => {
     const map = new Map<string, number>();
@@ -51,6 +59,25 @@ const Dashboard = () => {
     return map;
   }, [pendingPayouts, suggestions, overrides, operatorHeldIds]);
 
+  // Funding gap: providers where effective balance - allocated < 0
+  const fundingGaps = useMemo(() => {
+    const gaps: { provider: string; currency: string; gap: number }[] = [];
+    const balMap = new Map<string, number>();
+    for (const b of effectiveBalances) {
+      const key = `${b.provider.toUpperCase()}|${b.currency.toUpperCase()}`;
+      balMap.set(key, (balMap.get(key) ?? 0) + b.currentBalance);
+    }
+    for (const [key, allocAmt] of allocated) {
+      const bal = balMap.get(key) ?? 0;
+      const remaining = bal - allocAmt;
+      if (remaining < 0) {
+        const [provider, currency] = key.split("|");
+        gaps.push({ provider, currency, gap: remaining });
+      }
+    }
+    return gaps;
+  }, [effectiveBalances, allocated]);
+
   if (error) {
     return (
       <div className="flex items-center gap-2 text-destructive p-4">
@@ -71,6 +98,19 @@ const Dashboard = () => {
 
       <DashboardStats transactions={pendingPayouts} suggestions={suggestions} isLoading={isLoading} />
 
+      {fundingGaps.length > 0 && (
+        <div className="flex items-center gap-1.5 text-sm text-[hsl(var(--status-danger))] flex-wrap">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="font-medium">Funding gap:</span>
+          {fundingGaps.map((g, i) => (
+            <span key={`${g.provider}-${g.currency}`}>
+              {i > 0 && <span className="text-muted-foreground"> · </span>}
+              {g.provider} {g.currency} {formatCurrency(g.gap, g.currency)}
+            </span>
+          ))}
+        </div>
+      )}
+
       {heldBackPayouts.length > 0 && (
         <Card className="border-dashed border-muted-foreground/30">
           <CardContent className="py-3 px-4 flex items-center gap-2 text-sm text-muted-foreground">
@@ -88,7 +128,7 @@ const Dashboard = () => {
         <FlowTargetCards targets={flowTargetProgress} isLoading={isLoading} />
       )}
       <div className="sticky top-14 z-20 -mx-6 px-6 py-3 bg-background/95 backdrop-blur-sm border-b border-border">
-        <BalanceCards balances={balances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} />
+        <BalanceCards balances={balances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} incomingTransfers={incomingTransfers} />
       </div>
       
       <PayoutsTable transactions={pendingPayouts} heldBackTransactions={heldBackPayouts} suggestions={suggestions} routingRules={routingRules} isLoading={isLoading} onRelease={handleRelease} overrides={overrides} onOverride={handleOverride} operatorHeldIds={operatorHeldIds} onToggleHold={handleToggleHold} />

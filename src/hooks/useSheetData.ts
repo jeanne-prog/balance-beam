@@ -231,6 +231,36 @@ export function useSepaCountries() {
   );
 }
 
+export interface InternalTransfer {
+  paymentId: string;
+  fromAccount: string;
+  toAccount: string;
+  amount: number;
+  currency: string;
+  sentAt: string | null;
+  source: "inflight";
+}
+
+export function useInternalTransfers() {
+  return useSheetTab<InternalTransfer>("payments", (raw) =>
+    raw
+      .filter(
+        (r) =>
+          str(r.type).toLowerCase() === "internal_transfer" &&
+          str(r.status).toLowerCase() === "sent"
+      )
+      .map((r) => ({
+        paymentId: str(r.payment_id),
+        fromAccount: str(r.from_internal_account),
+        toAccount: str(r.to_internal_account),
+        amount: parseNumber(r.amount),
+        currency: str(r.currency).toUpperCase(),
+        sentAt: strOrNull(r.sent_at),
+        source: "inflight" as const,
+      }))
+  );
+}
+
 /* ── Mutations ───────────────────────────────────────────── */
 
 export function useWriteSheet() {

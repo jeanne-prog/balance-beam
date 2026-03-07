@@ -128,6 +128,7 @@ export interface FundingAction {
   urgency: "critical" | "high" | "medium" | "low";
   p50Covered: boolean;
   p75Covered: boolean;
+  neoInsufficient: boolean;
 }
 
 export interface LiquidityForecast {
@@ -145,6 +146,131 @@ export interface LiquidityForecast {
 
 function normalize(s: string): string {
   return s.trim().toUpperCase();
+}
+
+// ── Account name → provider lookup for in-flight transfers ──
+
+const ACCOUNT_PROVIDER_MAP: Record<string, string> = {
+  "CORPAY EUR": "CORPAY",
+  "CORPAY USD": "CORPAY",
+  "CORPAY GBP": "CORPAY",
+  "EMQ USD": "EMQ",
+  "EMQ EUR": "EMQ",
+  "EMQ GBP": "EMQ",
+  "NEO - USD CLIENTS": "NEO",
+  "NEO - EUR CLIENTS": "NEO",
+  "NEO - GBP CLIENTS": "NEO",
+  "GIB USD": "GIB",
+  "TAZAPAY USD": "TAZAPAY",
+};
+
+function resolveAccountProvider(accountName: string): { provider: string; currency: string } | null {
+  const upper = accountName.trim().toUpperCase();
+  for (const [pattern, provider] of Object.entries(ACCOUNT_PROVIDER_MAP)) {
+    if (upper.includes(pattern) || upper === pattern) {
+      // Extract currency from the pattern (last 3 chars usually)
+      const parts = pattern.split(" ");
+      const currency = parts[parts.length - 1];
+      return { provider, currency };
+    }
+  }
+  // Fallback: try to parse "Provider Currency" pattern
+  const parts = upper.split(/\s+/);
+  if (parts.length >= 2) {
+    const currency = parts[parts.length - 1];
+    const provider = parts.slice(0, -1).join(" ").replace(/[^A-Z]/g, "");
+    if (currency.length === 3 && provider.length >= 2) {
+      return { provider, currency };
+    }
+  }
+  return null;
+}
+
+export interface PlannedTransfer {
+  id: string;
+  fromProvider: string;
+  toProvider: string;
+  currency: string;
+  amount: number;
+  createdAt: string;
+  source: "planned";
+}
+
+export interface IncomingTransferSummary {
+  /** "PROVIDER|CURRENCY" → inflight amount */
+  inflight: Map<string, number>;
+  /** "PROVIDER|CURRENCY" → planned amount */
+  planned: Map<string, number>;
+}
+
+export function computeIncomingTransfers(
+  plannedTransfers: PlannedTransfer[],
+  inFlightTransfers: { toAccount: string; amount: number; currency: string }[],
+): IncomingTransferSummary {
+  const inflight = new Map<string, number>();
+  const planned = new Map<string, number>();
+
+  for (const t of inFlightTransfers) {
+    const resolved = resolveAccountProvider(t.toAccount);
+    if (resolved) {
+      const key = `${resolved.provider}|${resolved.currency}`;
+      inflight.set(key, (inflight.get(key) ?? 0) + t.amount);
+    }
+  }
+
+  for (const t of plannedTransfers) {
+    const key = `${normalize(t.toProvider)}|${normalize(t.currency)}`;
+    planned.set(key, (planned.get(key) ?? 0) + t.amount);
+  }
+
+  return { inflight, planned };
+}
+
+export function computeEffectiveBalances(
+  balances: Balance[],
+  plannedTransfers: PlannedTransfer[],
+  inFlightTransfers: { toAccount: string; amount: number; currency: string }[],
+): Balance[] {
+  // Start from a mutable copy keyed by provider|currency
+  const balanceMap = new Map<string, number>();
+  for (const b of balances) {
+    const key = `${normalize(b.provider)}|${normalize(b.currency)}`;
+    balanceMap.set(key, (balanceMap.get(key) ?? 0) + b.currentBalance);
+  }
+
+  // Planned transfers: subtract from source, add to destination
+  for (const t of plannedTransfers) {
+    const fromKey = `${normalize(t.fromProvider)}|${normalize(t.currency)}`;
+    const toKey = `${normalize(t.toProvider)}|${normalize(t.currency)}`;
+    balanceMap.set(fromKey, (balanceMap.get(fromKey) ?? 0) - t.amount);
+    balanceMap.set(toKey, (balanceMap.get(toKey) ?? 0) + t.amount);
+  }
+
+  // In-flight transfers: only add to destination (already left source)
+  for (const t of inFlightTransfers) {
+    const resolved = resolveAccountProvider(t.toAccount);
+    if (resolved) {
+      const key = `${resolved.provider}|${resolved.currency}`;
+      balanceMap.set(key, (balanceMap.get(key) ?? 0) + t.amount);
+    }
+  }
+
+  // Convert back to Balance[]
+  return Array.from(balanceMap.entries()).map(([key, amount]) => {
+    const [provider, currency] = key.split("|");
+    const original = balances.find(
+      b => normalize(b.provider) === provider && normalize(b.currency) === currency
+    );
+    return {
+      accountId: original?.accountId ?? `eff-${key}`,
+      accountName: original?.accountName ?? provider,
+      accountCountry: original?.accountCountry ?? "",
+      provider,
+      currency,
+      currentBalance: amount,
+      lastBalanceAt: original?.lastBalanceAt ?? "",
+    };
+  });
 }
 
 function getAgeBucket(ageInDays: number): string {
@@ -270,12 +396,14 @@ function computeDemandForecast(
   avgDailyVolume: Map<string, number>,
   cohortRates: CohortRates,
 ): DemandForecast {
+  const cur = normalize(currency);
+  // For today horizon: EUR and USD use full forecast, all others use confirmed only
+  const confirmedOnly = horizon === "today" && cur !== "EUR" && cur !== "USD";
   const horizonIndex = horizon === "today" ? 0 : 1;
   const today = todayUtc();
   const tomorrow = tomorrowUtc();
   const targetDate = horizon === "today" ? today : tomorrow;
   const now = new Date();
-  const cur = normalize(currency);
   const cancellationRate = cohortRates.cancellationRates[cur] ?? cohortRates.cancellationRates["DEFAULT"] ?? 0.15;
 
   let confirmedPendingPayout = 0;
@@ -294,6 +422,8 @@ function computeDemandForecast(
       }
       continue;
     }
+
+    if (confirmedOnly) continue; // Non EUR/USD today: skip pipeline/draft/new volume
 
     if (tx.status === "pending_collection") {
       const approvedAt = tx.approvedAtDate ? new Date(tx.approvedAtDate) : null;
@@ -321,11 +451,12 @@ function computeDemandForecast(
   const avgVol = avgDailyVolume.get(cur) ?? 0;
   const newVolRates = cohortRates.newVolume;
   let fromNewVolume = 0;
-  if (horizon === "today") {
-    fromNewVolume = avgVol * (newVolRates[0] ?? 0);
-  } else {
-    // Today's new vol paying out D+1, plus tomorrow's new vol paying out D
-    fromNewVolume = avgVol * (newVolRates[1] ?? 0) + avgVol * (newVolRates[0] ?? 0);
+  if (!confirmedOnly) {
+    if (horizon === "today") {
+      fromNewVolume = avgVol * (newVolRates[0] ?? 0);
+    } else {
+      fromNewVolume = avgVol * (newVolRates[1] ?? 0) + avgVol * (newVolRates[0] ?? 0);
+    }
   }
 
   const total = confirmedPendingPayout + heldBackDueToday + fromPendingCollection + fromDraftPending + fromNewVolume;
@@ -420,6 +551,9 @@ export function computeLiquidityForecast(
     const actions: FundingAction[] = [];
     const now = new Date();
 
+    // Compute Neo effective balance for this currency to cap transfers
+    let neoRemaining = balanceMap.get(`NEO|${currency}`) ?? 0;
+
     for (const provider of providersForCurrency) {
       const provKey = `${provider}|${currency}`;
       const currentBalance = balanceMap.get(provKey) ?? 0;
@@ -446,12 +580,15 @@ export function computeLiquidityForecast(
       }
 
       if ((shortfallTodayP50 > 0 || shortfallTodayP75 > 0) && !todayCutoffPassed) {
-        // minutesUntilCutoff = time until the Neo initiation deadline (provider's fundingCutoffUtc)
         const minutesUntilCutoff = (fundingCutoffUtc && fundingCutoffUtc !== "TBC") ? computeMinutesUntilCutoff(fundingCutoffUtc, false) : null;
+        // Cap at Neo remaining balance
+        const cappedP50 = Math.min(shortfallTodayP50, Math.max(0, neoRemaining));
+        const cappedP75 = Math.min(shortfallTodayP75, Math.max(0, neoRemaining));
+        const neoInsufficient = cappedP50 < shortfallTodayP50;
         const p50Covered = shortfallTodayP50 === 0;
         const p75Covered = shortfallTodayP75 === 0;
         actions.push({
-          currency, amountP50: shortfallTodayP50, amountP75: shortfallTodayP75,
+          currency, amountP50: cappedP50, amountP75: cappedP75,
           fromProvider: "NEO", toProvider: provider, horizon: "today",
           demandBreakdown: {
             confirmedPendingPayout: forecastToday.confirmedPendingPayout * share,
@@ -462,7 +599,9 @@ export function computeLiquidityForecast(
           },
           fundingCutoffUtc, minutesUntilCutoff, cutoffIsTomorrow: false,
           urgency: getUrgency(minutesUntilCutoff, p50Covered), p50Covered, p75Covered,
+          neoInsufficient,
         });
+        neoRemaining -= cappedP50;
       }
 
       // ── TOMORROW ──
@@ -489,10 +628,13 @@ export function computeLiquidityForecast(
             minutesUntilTomorrowCutoff = computeMinutesUntilCutoff(fundingCutoffUtc, true);
           }
           if (minutesUntilTomorrowCutoff === null || minutesUntilTomorrowCutoff > 0) {
+            const cappedP50 = Math.min(shortfallTomorrowP50, Math.max(0, neoRemaining));
+            const cappedP75 = Math.min(shortfallTomorrowP75, Math.max(0, neoRemaining));
+            const neoInsufficient = cappedP50 < shortfallTomorrowP50;
             const p50Covered = shortfallTomorrowP50 === 0;
             const p75Covered = shortfallTomorrowP75 === 0;
             actions.push({
-              currency, amountP50: shortfallTomorrowP50, amountP75: shortfallTomorrowP75,
+              currency, amountP50: cappedP50, amountP75: cappedP75,
               fromProvider: "NEO", toProvider: provider, horizon: "tomorrow",
               demandBreakdown: {
                 confirmedPendingPayout: forecastTomorrow.confirmedPendingPayout * share,
@@ -503,7 +645,9 @@ export function computeLiquidityForecast(
               },
               fundingCutoffUtc, minutesUntilCutoff: minutesUntilTomorrowCutoff, cutoffIsTomorrow: true,
               urgency: getUrgency(minutesUntilTomorrowCutoff, p50Covered), p50Covered, p75Covered,
+              neoInsufficient,
             });
+            neoRemaining -= cappedP50;
           }
         }
       }
