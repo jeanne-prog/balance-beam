@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useCallback } from "react";
 import {
   useTransactions,
   useBalances,
@@ -14,6 +14,7 @@ import {
   useRoutingRules,
   useCohortRates,
   useSepaCountries,
+  useInternalTransfers,
 } from "@/hooks/useSheetData";
 import { useScoringWeightsMap } from "@/hooks/useScoringWeights";
 import {
@@ -23,10 +24,16 @@ import {
   type ScoringWeights,
   DEFAULT_WEIGHTS,
 } from "@/lib/routingEngine";
-import { computeLiquidityForecast, parseCohortRates } from "@/lib/fundMovements";
+import {
+  computeLiquidityForecast,
+  parseCohortRates,
+  computeEffectiveBalances,
+  computeIncomingTransfers,
+  type PlannedTransfer,
+} from "@/lib/fundMovements";
 import { isTransactionDueForPayout } from "@/lib/routingRules";
 import type { RoutingSuggestion, RoutingRule } from "@/types";
-import type { LiquidityForecast } from "@/lib/fundMovements";
+import type { LiquidityForecast, IncomingTransferSummary } from "@/lib/fundMovements";
 
 export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorHeldIds: Set<string> = new Set()) {
   const allTx = useTransactions();
@@ -43,7 +50,22 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
   const routingRules = useRoutingRules();
   const cohortRatesQuery = useCohortRates();
   const sepaCountriesQuery = useSepaCountries();
+  const internalTransfersQuery = useInternalTransfers();
   const { weightsMap, isLoading: weightsLoading } = useScoringWeightsMap();
+
+  // Planned transfers — in-memory only
+  const [plannedTransfers, setPlannedTransfers] = useState<PlannedTransfer[]>([]);
+  const addPlannedTransfer = useCallback((t: Omit<PlannedTransfer, "id" | "createdAt" | "source">) => {
+    setPlannedTransfers(prev => [...prev, {
+      ...t,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      source: "planned",
+    }]);
+  }, []);
+  const removePlannedTransfer = useCallback((id: string) => {
+    setPlannedTransfers(prev => prev.filter(t => t.id !== id));
+  }, []);
 
   const isLoading =
     allTx.isLoading ||
@@ -60,6 +82,7 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
     routingRules.isLoading ||
     cohortRatesQuery.isLoading ||
     sepaCountriesQuery.isLoading ||
+    internalTransfersQuery.isLoading ||
     weightsLoading;
 
   const error =
@@ -75,15 +98,14 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
     receiverMatrix.error ||
     providerManual.error ||
     routingRules.error ||
-    cohortRatesQuery.error;
+    cohortRatesQuery.error ||
+    internalTransfersQuery.error;
 
-  /** All pending_payout transactions (before routing rules filter) */
   const allPendingPayouts = useMemo(
     () => (allTx.data ?? []).filter((t) => t.status === "pending_payout"),
     [allTx.data]
   );
 
-  /** Only transactions that are due for payout today per routing rules (or manually released) */
   const pendingPayouts = useMemo(() => {
     const rules = routingRules.data ?? [];
     if (rules.length === 0) return allPendingPayouts;
@@ -92,7 +114,6 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
     );
   }, [allPendingPayouts, routingRules.data, releasedIds]);
 
-  /** Transactions held back by routing rules (not yet due and not released) */
   const heldBackPayouts = useMemo(() => {
     const rules = routingRules.data ?? [];
     if (rules.length === 0) return [];
@@ -100,6 +121,18 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
       (tx) => !isTransactionDueForPayout(tx, rules) && !releasedIds.has(tx.transactionId)
     );
   }, [allPendingPayouts, routingRules.data, releasedIds]);
+
+  // Effective balances (actual + planned + in-flight)
+  const inFlightTransfers = internalTransfersQuery.data ?? [];
+
+  const effectiveBalances = useMemo(() => {
+    if (!balances.data) return [];
+    return computeEffectiveBalances(balances.data, plannedTransfers, inFlightTransfers);
+  }, [balances.data, plannedTransfers, inFlightTransfers]);
+
+  const incomingTransfers = useMemo<IncomingTransferSummary>(() => {
+    return computeIncomingTransfers(plannedTransfers, inFlightTransfers);
+  }, [plannedTransfers, inFlightTransfers]);
 
   const results = useMemo(() => {
     if (
@@ -136,7 +169,7 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
       swiftCodesBanned: swiftBanned.data,
       lightKycSenders: lightKyc.data,
       flowTargets: flowTargets.data,
-      balances: balances.data,
+      balances: effectiveBalances,
       allTransactions: allTx.data,
       providerManual: providerManual.data ?? [],
       sepaCountries: sepaSet,
@@ -161,38 +194,35 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
     weightsMap,
     pendingPayouts,
     operatorHeldIds,
+    effectiveBalances,
   ]);
 
-  /** Provider flow target progress */
   const flowTargetProgress = useMemo(() => {
     if (!flowTargets.data || !allTx.data) return [];
     return getProviderFlowPcts(flowTargets.data, allTx.data);
   }, [flowTargets.data, allTx.data]);
 
-  /** Set of provider IDs from currencies matrix (uppercase) */
   const routingProviders = useMemo(() => {
     if (!currencies.data) return new Set<string>();
     return new Set(currencies.data.map((cr) => cr.provider.toUpperCase()));
   }, [currencies.data]);
 
-  /** Parsed cohort rates */
   const cohortRates = useMemo(() => {
     if (!cohortRatesQuery.data) return null;
     return parseCohortRates(cohortRatesQuery.data);
   }, [cohortRatesQuery.data]);
 
-  /** Liquidity forecast */
   const liquidityForecast = useMemo<LiquidityForecast[]>(() => {
     if (!allTx.data || !balances.data || !currencies.data || !cohortRates) return [];
     return computeLiquidityForecast(
       allTx.data,
-      balances.data,
+      effectiveBalances,
       currencies.data,
       routingRules.data ?? [],
       results,
       cohortRates,
     );
-  }, [allTx.data, balances.data, currencies.data, routingRules.data, results, cohortRates]);
+  }, [allTx.data, balances.data, currencies.data, routingRules.data, results, cohortRates, effectiveBalances]);
 
   return {
     pendingPayouts,
@@ -200,10 +230,15 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
     allPendingPayouts,
     suggestions: results,
     balances: balances.data ?? [],
+    effectiveBalances,
+    incomingTransfers,
     routingProviders,
     flowTargetProgress,
     liquidityForecast,
     routingRules: routingRules.data ?? [],
+    plannedTransfers,
+    addPlannedTransfer,
+    removePlannedTransfer,
     isLoading,
     error,
   };

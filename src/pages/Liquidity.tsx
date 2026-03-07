@@ -1,8 +1,12 @@
 import { useRoutingEngine } from "@/hooks/useRoutingEngine";
 import { LiquidityForecastPanel } from "@/components/dashboard/LiquidityForecastPanel";
+import { BalanceCards } from "@/components/dashboard/BalanceCards";
+import { useMemo } from "react";
 
 const Liquidity = () => {
-  const { liquidityForecast, isLoading } = useRoutingEngine();
+  const { liquidityForecast, balances, effectiveBalances, incomingTransfers, routingProviders, plannedTransfers, addPlannedTransfer, removePlannedTransfer, isLoading } = useRoutingEngine();
+
+  const emptyAllocated = useMemo(() => new Map<string, number>(), []);
 
   return (
     <div className="space-y-6">
@@ -12,7 +16,15 @@ const Liquidity = () => {
           Forecast demand and recommended fund transfers across providers.
         </p>
       </div>
-      <LiquidityForecastPanel forecast={liquidityForecast} isLoading={isLoading} />
+      <BalanceCards balances={balances} routingProviders={routingProviders} allocated={emptyAllocated} isLoading={isLoading} incomingTransfers={incomingTransfers} />
+      <LiquidityForecastPanel
+        forecast={liquidityForecast}
+        isLoading={isLoading}
+        plannedTransfers={plannedTransfers}
+        onAddPlannedTransfer={addPlannedTransfer}
+        onRemovePlannedTransfer={removePlannedTransfer}
+        effectiveBalances={effectiveBalances}
+      />
     </div>
   );
 };
