@@ -424,6 +424,8 @@ function computeDemandForecast(
       continue;
     }
 
+    if (confirmedOnly) continue; // Non EUR/USD today: skip pipeline/draft/new volume
+
     if (tx.status === "pending_collection") {
       const approvedAt = tx.approvedAtDate ? new Date(tx.approvedAtDate) : null;
       if (!approvedAt) continue;
@@ -450,11 +452,12 @@ function computeDemandForecast(
   const avgVol = avgDailyVolume.get(cur) ?? 0;
   const newVolRates = cohortRates.newVolume;
   let fromNewVolume = 0;
-  if (horizon === "today") {
-    fromNewVolume = avgVol * (newVolRates[0] ?? 0);
-  } else {
-    // Today's new vol paying out D+1, plus tomorrow's new vol paying out D
-    fromNewVolume = avgVol * (newVolRates[1] ?? 0) + avgVol * (newVolRates[0] ?? 0);
+  if (!confirmedOnly) {
+    if (horizon === "today") {
+      fromNewVolume = avgVol * (newVolRates[0] ?? 0);
+    } else {
+      fromNewVolume = avgVol * (newVolRates[1] ?? 0) + avgVol * (newVolRates[0] ?? 0);
+    }
   }
 
   const total = confirmedPendingPayout + heldBackDueToday + fromPendingCollection + fromDraftPending + fromNewVolume;
