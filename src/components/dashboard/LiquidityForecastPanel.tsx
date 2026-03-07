@@ -329,9 +329,27 @@ export function LiquidityForecastPanel({ forecast, isLoading, plannedTransfers, 
               </div>
             )}
 
-            {f.actions.length === 0 && (
-              <p className="text-xs text-muted-foreground">All providers adequately funded for {f.currency}.</p>
-            )}
+            {f.actions.length === 0 && (() => {
+              let totalBalance = f.totalCurrentBalance;
+              if (effectiveBalances) {
+                totalBalance = 0;
+                for (const b of effectiveBalances) {
+                  if (b.currency.toUpperCase() === f.currency) {
+                    totalBalance += b.currentBalance;
+                  }
+                }
+              }
+              const gap = totalBalance - f.demandTodayP50;
+              if (gap < 0) {
+                return (
+                  <div className="flex items-center gap-1.5 text-xs text-[hsl(var(--status-warning))]">
+                    <AlertTriangle className="h-3 w-3" />
+                    Gap of {fmt(Math.abs(gap), f.currency)} — no transfer available (insufficient Neo balance for this currency)
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </CardContent>
         </Card>
       ))}
