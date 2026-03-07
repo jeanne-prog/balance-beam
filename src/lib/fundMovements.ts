@@ -629,10 +629,13 @@ export function computeLiquidityForecast(
             minutesUntilTomorrowCutoff = computeMinutesUntilCutoff(fundingCutoffUtc, true);
           }
           if (minutesUntilTomorrowCutoff === null || minutesUntilTomorrowCutoff > 0) {
+            const cappedP50 = Math.min(shortfallTomorrowP50, Math.max(0, neoRemaining));
+            const cappedP75 = Math.min(shortfallTomorrowP75, Math.max(0, neoRemaining));
+            const neoInsufficient = cappedP50 < shortfallTomorrowP50;
             const p50Covered = shortfallTomorrowP50 === 0;
             const p75Covered = shortfallTomorrowP75 === 0;
             actions.push({
-              currency, amountP50: shortfallTomorrowP50, amountP75: shortfallTomorrowP75,
+              currency, amountP50: cappedP50, amountP75: cappedP75,
               fromProvider: "NEO", toProvider: provider, horizon: "tomorrow",
               demandBreakdown: {
                 confirmedPendingPayout: forecastTomorrow.confirmedPendingPayout * share,
@@ -643,7 +646,9 @@ export function computeLiquidityForecast(
               },
               fundingCutoffUtc, minutesUntilCutoff: minutesUntilTomorrowCutoff, cutoffIsTomorrow: true,
               urgency: getUrgency(minutesUntilTomorrowCutoff, p50Covered), p50Covered, p75Covered,
+              neoInsufficient,
             });
+            neoRemaining -= cappedP50;
           }
         }
       }
