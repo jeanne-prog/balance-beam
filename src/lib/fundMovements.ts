@@ -581,12 +581,15 @@ export function computeLiquidityForecast(
       }
 
       if ((shortfallTodayP50 > 0 || shortfallTodayP75 > 0) && !todayCutoffPassed) {
-        // minutesUntilCutoff = time until the Neo initiation deadline (provider's fundingCutoffUtc)
         const minutesUntilCutoff = (fundingCutoffUtc && fundingCutoffUtc !== "TBC") ? computeMinutesUntilCutoff(fundingCutoffUtc, false) : null;
+        // Cap at Neo remaining balance
+        const cappedP50 = Math.min(shortfallTodayP50, Math.max(0, neoRemaining));
+        const cappedP75 = Math.min(shortfallTodayP75, Math.max(0, neoRemaining));
+        const neoInsufficient = cappedP50 < shortfallTodayP50;
         const p50Covered = shortfallTodayP50 === 0;
         const p75Covered = shortfallTodayP75 === 0;
         actions.push({
-          currency, amountP50: shortfallTodayP50, amountP75: shortfallTodayP75,
+          currency, amountP50: cappedP50, amountP75: cappedP75,
           fromProvider: "NEO", toProvider: provider, horizon: "today",
           demandBreakdown: {
             confirmedPendingPayout: forecastToday.confirmedPendingPayout * share,
@@ -597,7 +600,9 @@ export function computeLiquidityForecast(
           },
           fundingCutoffUtc, minutesUntilCutoff, cutoffIsTomorrow: false,
           urgency: getUrgency(minutesUntilCutoff, p50Covered), p50Covered, p75Covered,
+          neoInsufficient,
         });
+        neoRemaining -= cappedP50;
       }
 
       // ── TOMORROW ──
