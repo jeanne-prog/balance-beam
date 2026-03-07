@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback } from "react";
 import { useRoutingEngine } from "@/hooks/useRoutingEngine";
-import { AlertCircle, Clock, AlertTriangle } from "lucide-react";
+import { AlertCircle, Clock } from "lucide-react";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { BalanceCards } from "@/components/dashboard/BalanceCards";
 import { PayoutsTable } from "@/components/dashboard/PayoutsTable";
