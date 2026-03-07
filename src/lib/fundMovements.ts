@@ -148,6 +148,131 @@ function normalize(s: string): string {
   return s.trim().toUpperCase();
 }
 
+// ── Account name → provider lookup for in-flight transfers ──
+
+const ACCOUNT_PROVIDER_MAP: Record<string, string> = {
+  "CORPAY EUR": "CORPAY",
+  "CORPAY USD": "CORPAY",
+  "CORPAY GBP": "CORPAY",
+  "EMQ USD": "EMQ",
+  "EMQ EUR": "EMQ",
+  "EMQ GBP": "EMQ",
+  "NEO - USD CLIENTS": "NEO",
+  "NEO - EUR CLIENTS": "NEO",
+  "NEO - GBP CLIENTS": "NEO",
+  "GIB USD": "GIB",
+  "TAZAPAY USD": "TAZAPAY",
+};
+
+function resolveAccountProvider(accountName: string): { provider: string; currency: string } | null {
+  const upper = accountName.trim().toUpperCase();
+  for (const [pattern, provider] of Object.entries(ACCOUNT_PROVIDER_MAP)) {
+    if (upper.includes(pattern) || upper === pattern) {
+      // Extract currency from the pattern (last 3 chars usually)
+      const parts = pattern.split(" ");
+      const currency = parts[parts.length - 1];
+      return { provider, currency };
+    }
+  }
+  // Fallback: try to parse "Provider Currency" pattern
+  const parts = upper.split(/\s+/);
+  if (parts.length >= 2) {
+    const currency = parts[parts.length - 1];
+    const provider = parts.slice(0, -1).join(" ").replace(/[^A-Z]/g, "");
+    if (currency.length === 3 && provider.length >= 2) {
+      return { provider, currency };
+    }
+  }
+  return null;
+}
+
+export interface PlannedTransfer {
+  id: string;
+  fromProvider: string;
+  toProvider: string;
+  currency: string;
+  amount: number;
+  createdAt: string;
+  source: "planned";
+}
+
+export interface IncomingTransferSummary {
+  /** "PROVIDER|CURRENCY" → inflight amount */
+  inflight: Map<string, number>;
+  /** "PROVIDER|CURRENCY" → planned amount */
+  planned: Map<string, number>;
+}
+
+export function computeIncomingTransfers(
+  plannedTransfers: PlannedTransfer[],
+  inFlightTransfers: { toAccount: string; amount: number; currency: string }[],
+): IncomingTransferSummary {
+  const inflight = new Map<string, number>();
+  const planned = new Map<string, number>();
+
+  for (const t of inFlightTransfers) {
+    const resolved = resolveAccountProvider(t.toAccount);
+    if (resolved) {
+      const key = `${resolved.provider}|${resolved.currency}`;
+      inflight.set(key, (inflight.get(key) ?? 0) + t.amount);
+    }
+  }
+
+  for (const t of plannedTransfers) {
+    const key = `${normalize(t.toProvider)}|${normalize(t.currency)}`;
+    planned.set(key, (planned.get(key) ?? 0) + t.amount);
+  }
+
+  return { inflight, planned };
+}
+
+export function computeEffectiveBalances(
+  balances: Balance[],
+  plannedTransfers: PlannedTransfer[],
+  inFlightTransfers: { toAccount: string; amount: number; currency: string }[],
+): Balance[] {
+  // Start from a mutable copy keyed by provider|currency
+  const balanceMap = new Map<string, number>();
+  for (const b of balances) {
+    const key = `${normalize(b.provider)}|${normalize(b.currency)}`;
+    balanceMap.set(key, (balanceMap.get(key) ?? 0) + b.currentBalance);
+  }
+
+  // Planned transfers: subtract from source, add to destination
+  for (const t of plannedTransfers) {
+    const fromKey = `${normalize(t.fromProvider)}|${normalize(t.currency)}`;
+    const toKey = `${normalize(t.toProvider)}|${normalize(t.currency)}`;
+    balanceMap.set(fromKey, (balanceMap.get(fromKey) ?? 0) - t.amount);
+    balanceMap.set(toKey, (balanceMap.get(toKey) ?? 0) + t.amount);
+  }
+
+  // In-flight transfers: only add to destination (already left source)
+  for (const t of inFlightTransfers) {
+    const resolved = resolveAccountProvider(t.toAccount);
+    if (resolved) {
+      const key = `${resolved.provider}|${resolved.currency}`;
+      balanceMap.set(key, (balanceMap.get(key) ?? 0) + t.amount);
+    }
+  }
+
+  // Convert back to Balance[]
+  return Array.from(balanceMap.entries()).map(([key, amount]) => {
+    const [provider, currency] = key.split("|");
+    const original = balances.find(
+      b => normalize(b.provider) === provider && normalize(b.currency) === currency
+    );
+    return {
+      accountId: original?.accountId ?? `eff-${key}`,
+      accountName: original?.accountName ?? provider,
+      accountCountry: original?.accountCountry ?? "",
+      provider,
+      currency,
+      currentBalance: amount,
+      lastBalanceAt: original?.lastBalanceAt ?? "",
+    };
+  });
+}
+
 function getAgeBucket(ageInDays: number): string {
   if (ageInDays < 1) return "0-1";
   if (ageInDays < 2) return "1-2";
