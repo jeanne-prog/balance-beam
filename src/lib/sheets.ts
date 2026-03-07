@@ -20,6 +20,7 @@ export const TAB_KEYS = [
   "providerManual",
   "cohortRates",
   "sepaCountries",
+  "payments",
 ] as const;
 
 export type TabKey = (typeof TAB_KEYS)[number];
