@@ -6,6 +6,7 @@ import { AlertCircle, Clock } from "lucide-react";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { BalanceCards } from "@/components/dashboard/BalanceCards";
 import { PayoutsTable } from "@/components/dashboard/PayoutsTable";
+import { PayoutsFilterBar, applyPayoutsFilters, type PayoutsFilters } from "@/components/dashboard/PayoutsFilterBar";
 import { FlowTargetCards } from "@/components/dashboard/FlowTargetCards";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
