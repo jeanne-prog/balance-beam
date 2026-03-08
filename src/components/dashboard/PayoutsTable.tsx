@@ -102,14 +102,14 @@ export function PayoutsTable({ transactions, heldBackTransactions = [], suggesti
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-8" />
-                <TableHead className="w-[110px]">Reference</TableHead>
+                <TableHead className="w-6 px-1" />
+                <TableHead className="w-[90px] max-w-[90px]">Reference</TableHead>
                 <TableHead>Sender</TableHead>
                 <TableHead>Beneficiary</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead>Destination</TableHead>
                 <TableHead>Recommended</TableHead>
-                <TableHead className="w-[180px]">Selected</TableHead>
+                <TableHead className="w-[160px]">Selected</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-[70px]" />
               </TableRow>
@@ -153,10 +153,10 @@ export function PayoutsTable({ transactions, heldBackTransactions = [], suggesti
                           tx.hasBlockingIssue && !isOperatorHeld && "bg-[hsl(var(--status-danger-bg))]",
                           noRoute && !tx.hasBlockingIssue && "bg-[hsl(var(--status-warning-bg))]"
                         )}>
-                          <TableCell className="px-2">
+                          <TableCell className="px-1 w-6">
                             <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", isOpen && "rotate-90")} />
                           </TableCell>
-                          <TableCell className="font-mono-numbers text-xs">
+                          <TableCell className="font-mono-numbers text-xs max-w-[90px] truncate">
                             {tx.reference ?? tx.transactionId.slice(0, 12)}
                           </TableCell>
                           <TableCell className="max-w-[160px] truncate text-sm">
