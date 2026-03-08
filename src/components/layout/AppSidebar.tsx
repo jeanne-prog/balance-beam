@@ -30,6 +30,9 @@ const adminNav = [
   { to: "/admin/rules", label: "Routing Rules", icon: Scale },
   { to: "/admin/beneficiaries", label: "Beneficiaries", icon: Building2 },
   { to: "/admin/targets", label: "Flow Targets", icon: Target },
+  { to: "/admin/sender-matrix", label: "Sender Matrix", icon: Globe },
+  { to: "/admin/receiver-matrix", label: "Receiver Matrix", icon: Globe },
+  { to: "/admin/currencies", label: "Currencies", icon: Coins },
   { to: "/admin/weights", label: "Scoring Weights", icon: SlidersHorizontal },
   { to: "/admin/users", label: "Users", icon: Users },
 ];

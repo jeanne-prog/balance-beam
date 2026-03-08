@@ -16,6 +16,9 @@ import Beneficiaries from "./pages/admin/Beneficiaries";
 import Targets from "./pages/admin/Targets";
 import UserManagement from "./pages/admin/UserManagement";
 import ScoringWeights from "./pages/admin/ScoringWeights";
+import SenderMatrix from "./pages/admin/SenderMatrix";
+import ReceiverMatrix from "./pages/admin/ReceiverMatrix";
+import Currencies from "./pages/admin/Currencies";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,8 +42,11 @@ const App = () => (
               <Route path="/admin/rules" element={<Rules />} />
               <Route path="/admin/beneficiaries" element={<Beneficiaries />} />
               <Route path="/admin/targets" element={<Targets />} />
-              <Route path="/admin/users" element={<UserManagement />} />
+              <Route path="/admin/sender-matrix" element={<SenderMatrix />} />
+              <Route path="/admin/receiver-matrix" element={<ReceiverMatrix />} />
+              <Route path="/admin/currencies" element={<Currencies />} />
               <Route path="/admin/weights" element={<ScoringWeights />} />
+              <Route path="/admin/users" element={<UserManagement />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
