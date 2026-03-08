@@ -139,25 +139,11 @@ const Liquidity = () => {
   const {
     liquidityForecast, balances, effectiveBalances, incomingTransfers,
     routingProviders, plannedTransfers, addPlannedTransfer, removePlannedTransfer,
-    pendingPayouts, suggestions, isLoading,
+    pendingPayouts, suggestions, allocatedMap: allocated, isLoading,
   } = useRoutingEngine(new Set(), new Set(), fxRates, fxRateDate);
 
   const [showTomorrow, setShowTomorrow] = useState(false);
   const [showForecast, setShowForecast] = useState(false);
-
-  // Build allocated map from routing suggestions (same logic as Dashboard)
-  const allocated = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const tx of pendingPayouts) {
-      const sugs = suggestions.get(tx.transactionId) ?? [];
-      const selected = sugs.find((s) => s.score > 0 && s.balanceSufficient);
-      if (selected) {
-        const key = `${selected.provider}|${tx.receiverCurrency.toUpperCase()}`;
-        map.set(key, (map.get(key) ?? 0) + tx.receiverAmount);
-      }
-    }
-    return map;
-  }, [pendingPayouts, suggestions]);
 
   // Compute gaps: allocated > effectiveBalance (consistent with Dashboard)
   const gaps = useMemo(() => {
