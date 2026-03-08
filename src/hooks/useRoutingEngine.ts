@@ -195,10 +195,6 @@ export function useRoutingEngine(
     return scoreAllTransactions(pendingPayouts, routingContext, operatorHeldIds);
   }, [routingContext, pendingPayouts, operatorHeldIds]);
 
-  const allSuggestions = useMemo(() => {
-    if (!routingContext) return new Map<string, RoutingSuggestion[]>();
-    return scoreAllTransactions(allPendingPayouts, routingContext, operatorHeldIds);
-  }, [routingContext, allPendingPayouts, operatorHeldIds]);
 
   const flowTargetProgress = useMemo(() => {
     if (!flowTargets.data || !allTx.data) return [];
