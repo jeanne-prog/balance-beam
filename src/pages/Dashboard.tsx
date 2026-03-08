@@ -107,7 +107,7 @@ const Dashboard = () => {
         const [prov] = overrideKey.split("|");
         selected = sugs.find((s) => s.provider === prov);
       } else {
-        selected = sugs.find((s) => s.score > 0 && s.balanceSufficient);
+        selected = sugs.find((s) => s.score > 0);
       }
       if (selected) {
         const key = `${selected.provider}|${tx.receiverCurrency.toUpperCase()}`;
