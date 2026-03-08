@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo } from "react";
 import {
   useTransactions,
   useBalances,
@@ -29,11 +29,11 @@ import {
   parseCohortRates,
   computeEffectiveBalances,
   computeIncomingTransfers,
-  type PlannedTransfer,
 } from "@/lib/fundMovements";
 import { isTransactionDueForPayout } from "@/lib/routingRules";
 import type { RoutingSuggestion, RoutingRule } from "@/types";
 import type { LiquidityForecast, IncomingTransferSummary } from "@/lib/fundMovements";
+import { usePlannedTransfers } from "@/contexts/PlannedTransfersContext";
 
 export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorHeldIds: Set<string> = new Set()) {
   const allTx = useTransactions();
@@ -53,19 +53,8 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
   const internalTransfersQuery = useInternalTransfers();
   const { weightsMap, isLoading: weightsLoading } = useScoringWeightsMap();
 
-  // Planned transfers — in-memory only
-  const [plannedTransfers, setPlannedTransfers] = useState<PlannedTransfer[]>([]);
-  const addPlannedTransfer = useCallback((t: Omit<PlannedTransfer, "id" | "createdAt" | "source">) => {
-    setPlannedTransfers(prev => [...prev, {
-      ...t,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      source: "planned",
-    }]);
-  }, []);
-  const removePlannedTransfer = useCallback((id: string) => {
-    setPlannedTransfers(prev => prev.filter(t => t.id !== id));
-  }, []);
+  // Planned transfers — shared via context (persists across tab navigation)
+  const { plannedTransfers, addPlannedTransfer, removePlannedTransfer } = usePlannedTransfers();
 
   const isLoading =
     allTx.isLoading ||

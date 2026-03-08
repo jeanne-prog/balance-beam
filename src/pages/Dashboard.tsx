@@ -6,6 +6,7 @@ import { AlertCircle, Clock } from "lucide-react";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { BalanceCards } from "@/components/dashboard/BalanceCards";
 import { PayoutsTable } from "@/components/dashboard/PayoutsTable";
+import { PayoutsFilterBar, applyPayoutsFilters, type PayoutsFilters } from "@/components/dashboard/PayoutsFilterBar";
 import { FlowTargetCards } from "@/components/dashboard/FlowTargetCards";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
@@ -82,6 +83,18 @@ const Dashboard = () => {
     });
   }, []);
   const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, effectiveBalances, incomingTransfers, routingProviders, flowTargetProgress, routingRules, isLoading, error } = useRoutingEngine(releasedIds, operatorHeldIds);
+
+  // Filter state — local to Dashboard
+  const [filters, setFilters] = useState<PayoutsFilters>({ search: "", currency: "", status: "", provider: "" });
+
+  const filteredPending = useMemo(
+    () => applyPayoutsFilters(pendingPayouts, suggestions, filters),
+    [pendingPayouts, suggestions, filters],
+  );
+  const filteredHeld = useMemo(
+    () => applyPayoutsFilters(heldBackPayouts, suggestions, filters),
+    [heldBackPayouts, suggestions, filters],
+  );
 
   const allocated = useMemo(() => {
     const map = new Map<string, number>();
@@ -163,7 +176,14 @@ const Dashboard = () => {
         <BalanceCards balances={balances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} incomingTransfers={incomingTransfers} />
       </div>
       
-      <PayoutsTable transactions={pendingPayouts} heldBackTransactions={heldBackPayouts} suggestions={suggestions} routingRules={routingRules} isLoading={isLoading} onRelease={handleRelease} overrides={overrides} onOverride={handleOverride} operatorHeldIds={operatorHeldIds} onToggleHold={handleToggleHold} />
+      <PayoutsFilterBar
+        transactions={[...pendingPayouts, ...heldBackPayouts]}
+        suggestions={suggestions}
+        filters={filters}
+        onChange={setFilters}
+      />
+
+      <PayoutsTable transactions={filteredPending} heldBackTransactions={filteredHeld} suggestions={suggestions} routingRules={routingRules} isLoading={isLoading} onRelease={handleRelease} overrides={overrides} onOverride={handleOverride} operatorHeldIds={operatorHeldIds} onToggleHold={handleToggleHold} />
     </div>
   );
 };
