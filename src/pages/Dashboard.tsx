@@ -1,11 +1,14 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { useRoutingEngine } from "@/hooks/useRoutingEngine";
+import { useRoutingDecisions, useAppendRoutingDecision } from "@/hooks/useRoutingDecisions";
+import { useAuthContext } from "@/contexts/AuthContext";
 import { AlertCircle, Clock } from "lucide-react";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { BalanceCards } from "@/components/dashboard/BalanceCards";
 import { PayoutsTable } from "@/components/dashboard/PayoutsTable";
 import { FlowTargetCards } from "@/components/dashboard/FlowTargetCards";
 import { Card, CardContent } from "@/components/ui/card";
+import { toast } from "@/hooks/use-toast";
 
 function formatCurrency(amount: number, currency: string) {
   try {
