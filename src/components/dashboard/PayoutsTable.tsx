@@ -13,7 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { ChevronRight, ArrowUpRight, AlertTriangle, Clock, PlayCircle, Pause, Play } from "lucide-react";
-import { ProviderBadge } from "./ProviderBadge";
+import { ProviderBadge, PROVIDER_TRIGGER_COLORS } from "./ProviderBadge";
 import { RoutingSuggestionsPanel } from "./RoutingSuggestionsPanel";
 import type { Transaction, RoutingSuggestion, RoutingRule } from "@/types";
 import { getTransactionDueDate } from "@/lib/routingRules";
@@ -189,13 +189,14 @@ export function PayoutsTable({ transactions, heldBackTransactions = [], suggesti
                                 <SelectTrigger
                                   className={cn(
                                     "h-8 text-xs w-[160px]",
-                                    isOverridden && "border-primary ring-1 ring-primary/30"
+                                    selectedProvider && PROVIDER_TRIGGER_COLORS[selectedProvider.provider],
+                                    isOverridden && "ring-1 ring-primary/30"
                                   )}
                                 >
                                   <SelectValue>
                                     {selectedProvider ? (
                                       <div className="flex items-center gap-1.5">
-                                        <span className="font-semibold">{selectedProvider.provider}</span>
+                                        <ProviderBadge provider={selectedProvider.provider} />
                                         <span className="text-muted-foreground">{selectedProvider.rail}</span>
                                         {isOverridden && <span className="text-primary text-[10px]">✎</span>}
                                       </div>
@@ -205,7 +206,7 @@ export function PayoutsTable({ transactions, heldBackTransactions = [], suggesti
                                 <SelectContent className="z-50 bg-popover">
                                   <SelectItem value="__recommended" className="text-xs">
                                     <div className="flex items-center gap-1.5">
-                                      {top && <span className="font-semibold">{top.provider}</span>}
+                                      {top && <ProviderBadge provider={top.provider} />}
                                       <span className="text-muted-foreground">(recommended)</span>
                                     </div>
                                   </SelectItem>
@@ -214,7 +215,7 @@ export function PayoutsTable({ transactions, heldBackTransactions = [], suggesti
                                     .map((s) => (
                                       <SelectItem key={`${s.provider}|${s.rail}`} value={`${s.provider}|${s.rail}`} className="text-xs">
                                         <div className="flex items-center gap-1.5">
-                                          <span className="font-semibold">{s.provider}</span>
+                                          <ProviderBadge provider={s.provider} />
                                           <span className="text-muted-foreground">{s.rail}</span>
                                           {s.isPobo && <Badge variant="outline" className="text-[10px] px-1 py-0">POBO</Badge>}
                                           {!s.balanceSufficient && <span className="text-[hsl(var(--status-warning))] text-[10px]">low bal</span>}
