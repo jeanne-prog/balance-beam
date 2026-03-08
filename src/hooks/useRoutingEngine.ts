@@ -256,6 +256,7 @@ export function useRoutingEngine(
     heldBackPayouts,
     allPendingPayouts,
     suggestions: results,
+    allocatedMap,
     balances: balances.data ?? [],
     effectiveBalances,
     incomingTransfers,

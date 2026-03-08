@@ -519,6 +519,7 @@ export function computeLiquidityForecast(
   routingRules: RoutingRule[],
   currentSuggestions: Map<string, RoutingSuggestion[]>,
   cohortRates: CohortRates,
+  allocatedMap: Map<string, number>,
   fxRates?: Map<string, number>,
   fxRateDate?: string | null,
 ): LiquidityForecast[] {
@@ -529,16 +530,6 @@ export function computeLiquidityForecast(
   for (const b of balances) {
     const key = `${normalize(b.provider)}|${normalize(b.currency)}`;
     balanceMap.set(key, (balanceMap.get(key) ?? 0) + b.currentBalance);
-  }
-
-  const allocatedMap = new Map<string, number>();
-  for (const [txId, sugs] of currentSuggestions) {
-    const top = sugs.find(s => s.score > 0);
-    if (!top) continue;
-    const tx = allTransactions.find(t => t.transactionId === txId);
-    if (!tx) continue;
-    const key = `${normalize(top.provider)}|${normalize(tx.receiverCurrency)}`;
-    allocatedMap.set(key, (allocatedMap.get(key) ?? 0) + tx.receiverAmount);
   }
 
   const activeCurrencies = new Set<string>(["EUR", "USD"]);

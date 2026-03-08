@@ -82,7 +82,7 @@ const Dashboard = () => {
       return next;
     });
   }, []);
-  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, effectiveBalances, incomingTransfers, routingProviders, flowTargetProgress, routingRules, isLoading, error } = useRoutingEngine(releasedIds, operatorHeldIds);
+  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, allocatedMap, balances, effectiveBalances, incomingTransfers, routingProviders, flowTargetProgress, routingRules, isLoading, error } = useRoutingEngine(releasedIds, operatorHeldIds);
 
   // Filter state — local to Dashboard
   const [filters, setFilters] = useState<PayoutsFilters>({ search: "", currency: "", status: "", provider: "" });
@@ -96,6 +96,7 @@ const Dashboard = () => {
     [heldBackPayouts, suggestions, filters],
   );
 
+  // Override-aware allocated map for funding gap display (accounts for operator holds & manual overrides)
   const allocated = useMemo(() => {
     const map = new Map<string, number>();
     for (const tx of pendingPayouts) {
