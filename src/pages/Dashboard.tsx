@@ -84,6 +84,18 @@ const Dashboard = () => {
   }, []);
   const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, effectiveBalances, incomingTransfers, routingProviders, flowTargetProgress, routingRules, isLoading, error } = useRoutingEngine(releasedIds, operatorHeldIds);
 
+  // Filter state — local to Dashboard
+  const [filters, setFilters] = useState<PayoutsFilters>({ search: "", currency: "", status: "", provider: "" });
+
+  const filteredPending = useMemo(
+    () => applyPayoutsFilters(pendingPayouts, suggestions, filters),
+    [pendingPayouts, suggestions, filters],
+  );
+  const filteredHeld = useMemo(
+    () => applyPayoutsFilters(heldBackPayouts, suggestions, filters),
+    [heldBackPayouts, suggestions, filters],
+  );
+
   const allocated = useMemo(() => {
     const map = new Map<string, number>();
     for (const tx of pendingPayouts) {
