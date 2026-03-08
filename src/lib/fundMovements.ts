@@ -164,7 +164,8 @@ const ACCOUNT_PROVIDER_MAP: Record<string, string> = {
   "TAZAPAY USD": "TAZAPAY",
 };
 
-function resolveAccountProvider(accountName: string): { provider: string; currency: string } | null {
+function resolveAccountProvider(accountName: string | undefined | null): { provider: string; currency: string } | null {
+  if (!accountName) return null;
   const upper = accountName.trim().toUpperCase();
   for (const [pattern, provider] of Object.entries(ACCOUNT_PROVIDER_MAP)) {
     if (upper.includes(pattern) || upper === pattern) {
