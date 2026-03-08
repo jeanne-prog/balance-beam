@@ -13,7 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { ChevronRight, ArrowUpRight, AlertTriangle, Clock, PlayCircle, Pause, Play } from "lucide-react";
-import { ProviderBadge } from "./ProviderBadge";
+import { ProviderBadge, PROVIDER_TRIGGER_COLORS } from "./ProviderBadge";
 import { RoutingSuggestionsPanel } from "./RoutingSuggestionsPanel";
 import type { Transaction, RoutingSuggestion, RoutingRule } from "@/types";
 import { getTransactionDueDate } from "@/lib/routingRules";
