@@ -53,19 +53,8 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
   const internalTransfersQuery = useInternalTransfers();
   const { weightsMap, isLoading: weightsLoading } = useScoringWeightsMap();
 
-  // Planned transfers — in-memory only
-  const [plannedTransfers, setPlannedTransfers] = useState<PlannedTransfer[]>([]);
-  const addPlannedTransfer = useCallback((t: Omit<PlannedTransfer, "id" | "createdAt" | "source">) => {
-    setPlannedTransfers(prev => [...prev, {
-      ...t,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      source: "planned",
-    }]);
-  }, []);
-  const removePlannedTransfer = useCallback((id: string) => {
-    setPlannedTransfers(prev => prev.filter(t => t.id !== id));
-  }, []);
+  // Planned transfers — shared via context (persists across tab navigation)
+  const { plannedTransfers, addPlannedTransfer, removePlannedTransfer } = usePlannedTransfers();
 
   const isLoading =
     allTx.isLoading ||
