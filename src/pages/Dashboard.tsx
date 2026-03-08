@@ -176,7 +176,14 @@ const Dashboard = () => {
         <BalanceCards balances={balances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} incomingTransfers={incomingTransfers} />
       </div>
       
-      <PayoutsTable transactions={pendingPayouts} heldBackTransactions={heldBackPayouts} suggestions={suggestions} routingRules={routingRules} isLoading={isLoading} onRelease={handleRelease} overrides={overrides} onOverride={handleOverride} operatorHeldIds={operatorHeldIds} onToggleHold={handleToggleHold} />
+      <PayoutsFilterBar
+        transactions={[...pendingPayouts, ...heldBackPayouts]}
+        suggestions={suggestions}
+        filters={filters}
+        onChange={setFilters}
+      />
+
+      <PayoutsTable transactions={filteredPending} heldBackTransactions={filteredHeld} suggestions={suggestions} routingRules={routingRules} isLoading={isLoading} onRelease={handleRelease} overrides={overrides} onOverride={handleOverride} operatorHeldIds={operatorHeldIds} onToggleHold={handleToggleHold} />
     </div>
   );
 };

@@ -555,23 +555,19 @@ export function computeLiquidityForecast(
     let neoRemaining = balanceMap.get(`NEO|${currency}`) ?? 0;
 
     for (const provider of providersForCurrency) {
+      if (provider === "NEO") continue; // NEO is the funding source, not a destination
       const provKey = `${provider}|${currency}`;
       const currentBalance = balanceMap.get(provKey) ?? 0;
       const allocated = allocatedMap.get(provKey) ?? 0;
-      const remainingBalance = currentBalance - allocated;
-      const share = routingShares.get(provKey) ?? 0;
-      if (share === 0) continue;
 
       const rail = currencyRails.find(
         cr => normalize(cr.provider) === provider && normalize(cr.currency) === currency
       );
       const fundingCutoffUtc = rail?.fundingCutoffUtc ?? null;
 
-      // ── TODAY ──
-      const provDemandTodayP50 = demandTodayP50 * share;
-      const provDemandTodayP75 = demandTodayP75 * share;
-      const shortfallTodayP50 = Math.max(0, provDemandTodayP50 - remainingBalance);
-      const shortfallTodayP75 = Math.max(0, provDemandTodayP75 - remainingBalance);
+      // ── TODAY — use actual shortfall (allocated vs balance) ──
+      const actualShortfallP50 = Math.max(0, allocated - currentBalance);
+      const actualShortfallP75 = actualShortfallP50 * p75;
 
       let todayCutoffPassed = false;
       if (fundingCutoffUtc) {
@@ -579,23 +575,23 @@ export function computeLiquidityForecast(
         if (cutoffTime && cutoffTime < now) todayCutoffPassed = true;
       }
 
-      if ((shortfallTodayP50 > 0 || shortfallTodayP75 > 0) && !todayCutoffPassed) {
+      if (actualShortfallP50 > 0 && !todayCutoffPassed) {
         const minutesUntilCutoff = (fundingCutoffUtc && fundingCutoffUtc !== "TBC") ? computeMinutesUntilCutoff(fundingCutoffUtc, false) : null;
         // Cap at Neo remaining balance
-        const cappedP50 = Math.min(shortfallTodayP50, Math.max(0, neoRemaining));
-        const cappedP75 = Math.min(shortfallTodayP75, Math.max(0, neoRemaining));
-        const neoInsufficient = cappedP50 < shortfallTodayP50;
-        const p50Covered = shortfallTodayP50 === 0;
-        const p75Covered = shortfallTodayP75 === 0;
+        const cappedP50 = Math.min(actualShortfallP50, Math.max(0, neoRemaining));
+        const cappedP75 = Math.min(actualShortfallP75, Math.max(0, neoRemaining));
+        const neoInsufficient = cappedP50 < actualShortfallP50;
+        const p50Covered = actualShortfallP50 === 0;
+        const p75Covered = actualShortfallP75 === 0;
         actions.push({
           currency, amountP50: cappedP50, amountP75: cappedP75,
           fromProvider: "NEO", toProvider: provider, horizon: "today",
           demandBreakdown: {
-            confirmedPendingPayout: forecastToday.confirmedPendingPayout * share,
-            heldBackDueToday: forecastToday.heldBackDueToday * share,
-            fromPendingCollection: forecastToday.fromPendingCollection * share,
-            fromDraftPending: forecastToday.fromDraftPending * share,
-            fromNewVolume: forecastToday.fromNewVolume * share,
+            confirmedPendingPayout: forecastToday.confirmedPendingPayout,
+            heldBackDueToday: forecastToday.heldBackDueToday,
+            fromPendingCollection: forecastToday.fromPendingCollection,
+            fromDraftPending: forecastToday.fromDraftPending,
+            fromNewVolume: forecastToday.fromNewVolume,
           },
           fundingCutoffUtc, minutesUntilCutoff, cutoffIsTomorrow: false,
           urgency: getUrgency(minutesUntilCutoff, p50Covered), p50Covered, p75Covered,
@@ -604,10 +600,7 @@ export function computeLiquidityForecast(
         neoRemaining -= cappedP50;
       }
 
-      // ── TOMORROW ──
-      // Only generate tomorrow-horizon actions for providers whose funding cutoff
-      // is <= TEAM_START_HOUR_UTC (i.e. funds must arrive before the working day starts,
-      // meaning pre-funding is required the day before). Currently only EMQ EUR/GBP.
+      // ── TOMORROW — keep existing forecast-based logic for pre-fund providers ──
       const cutoffHour = fundingCutoffUtc ? parseInt(fundingCutoffUtc.split(":")[0], 10) : null;
       const needsPreFunding = fundingCutoffUtc != null
         && fundingCutoffUtc !== "TBC"
@@ -616,8 +609,11 @@ export function computeLiquidityForecast(
         && cutoffHour <= TEAM_START_HOUR_UTC;
 
       if (needsPreFunding) {
+        const share = routingShares.get(provKey) ?? 0;
+        const provDemandTodayP50 = demandTodayP50 * share;
         const provDemandTomorrowP50 = demandTomorrowP50 * share;
         const provDemandTomorrowP75 = demandTomorrowP75 * share;
+        const remainingBalance = currentBalance - allocated;
         const balanceAfterToday = Math.max(0, remainingBalance - provDemandTodayP50);
         const shortfallTomorrowP50 = Math.max(0, provDemandTomorrowP50 - balanceAfterToday);
         const shortfallTomorrowP75 = Math.max(0, provDemandTomorrowP75 - balanceAfterToday);
