@@ -283,6 +283,37 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "readBatch") {
+      // Read multiple tabs in a single request
+      const tabsParam = url.searchParams.get("tabs") ?? (bodyData.tabs as string | undefined);
+      if (!tabsParam) {
+        return new Response(
+          JSON.stringify({ error: "readBatch requires 'tabs' param (comma-separated)" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const tabKeys = tabsParam.split(",").map((t: string) => t.trim()) as TabKey[];
+      const invalidTab = tabKeys.find((t) => !(t in TABS));
+      if (invalidTab) {
+        return new Response(
+          JSON.stringify({ error: `Invalid tab: ${invalidTab}` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      // Read all tabs in parallel
+      const results = await Promise.all(
+        tabKeys.map(async (tk) => {
+          const rows = await readSheet(token, spreadsheetId, TABS[tk]);
+          return { tab: tk, data: rowsToObjects(rows) };
+        })
+      );
+      const batchResult: Record<string, Record<string, unknown>[]> = {};
+      for (const r of results) batchResult[r.tab] = r.data;
+      return new Response(JSON.stringify(batchResult), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (action === "write") {
       const { range, values } = bodyData as { range?: string; values?: unknown[][] };
       if (!range || !values) {
