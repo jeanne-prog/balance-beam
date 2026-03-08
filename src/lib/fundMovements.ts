@@ -131,6 +131,22 @@ export interface FundingAction {
   neoInsufficient: boolean;
 }
 
+export interface FxSwapAction {
+  type: "fx_swap";
+  shortfallCurrency: string;
+  shortfallProvider: string;
+  shortfallAmount: number;
+  sellCurrency: string;
+  sellProvider: string;
+  sellAmount: number;
+  fxRate: number;
+  fxRateDate: string | null;
+  fxCostBps: number;
+  urgency: "critical" | "high" | "medium" | "low";
+  minutesUntilCutoff: number | null;
+  fundingCutoffUtc: string | null;
+}
+
 export interface LiquidityForecast {
   currency: string;
   demandTodayP50: number;
@@ -140,6 +156,7 @@ export interface LiquidityForecast {
   totalCurrentBalance: number;
   totalAllocated: number;
   actions: FundingAction[];
+  fxSwapActions: FxSwapAction[];
 }
 
 // ── Helpers ───────────────────────────────────────────────
@@ -200,8 +217,10 @@ export interface PlannedTransfer {
 export interface IncomingTransferSummary {
   /** "PROVIDER|CURRENCY" → inflight amount */
   inflight: Map<string, number>;
-  /** "PROVIDER|CURRENCY" → planned amount */
+  /** "PROVIDER|CURRENCY" → planned incoming amount */
   planned: Map<string, number>;
+  /** "PROVIDER|CURRENCY" → planned outgoing amount */
+  outgoing: Map<string, number>;
 }
 
 export function computeIncomingTransfers(
@@ -210,6 +229,7 @@ export function computeIncomingTransfers(
 ): IncomingTransferSummary {
   const inflight = new Map<string, number>();
   const planned = new Map<string, number>();
+  const outgoing = new Map<string, number>();
 
   for (const t of inFlightTransfers) {
     const resolved = resolveAccountProvider(t.toAccount);
@@ -220,11 +240,13 @@ export function computeIncomingTransfers(
   }
 
   for (const t of plannedTransfers) {
-    const key = `${normalize(t.toProvider)}|${normalize(t.currency)}`;
-    planned.set(key, (planned.get(key) ?? 0) + t.amount);
+    const toKey = `${normalize(t.toProvider)}|${normalize(t.currency)}`;
+    planned.set(toKey, (planned.get(toKey) ?? 0) + t.amount);
+    const fromKey = `${normalize(t.fromProvider)}|${normalize(t.currency)}`;
+    outgoing.set(fromKey, (outgoing.get(fromKey) ?? 0) + t.amount);
   }
 
-  return { inflight, planned };
+  return { inflight, planned, outgoing };
 }
 
 export function computeEffectiveBalances(
@@ -497,6 +519,8 @@ export function computeLiquidityForecast(
   routingRules: RoutingRule[],
   currentSuggestions: Map<string, RoutingSuggestion[]>,
   cohortRates: CohortRates,
+  fxRates?: Map<string, number>,
+  fxRateDate?: string | null,
 ): LiquidityForecast[] {
   const avgDailyVolume = computeAvgDailyVolume(allTransactions);
   const routingShares = computeRoutingShares(allTransactions);
@@ -660,9 +684,61 @@ export function computeLiquidityForecast(
       return b.amountP50 - a.amountP50;
     });
 
+    // ── FX swap actions: for today-horizon shortfalls where Neo same-currency is insufficient ──
+    const fxSwapActions: FxSwapAction[] = [];
+    if (fxRates) {
+      const FX_SELL_ORDER = ["EUR", "USD", "GBP"];
+      for (const action of actions) {
+        if (action.horizon !== "today" || !action.neoInsufficient) continue;
+        const shortfallAmount = Math.max(0, (action.amountP50 > 0 ? (allocatedMap.get(`${action.toProvider}|${currency}`) ?? 0) - (balanceMap.get(`${action.toProvider}|${currency}`) ?? 0) : 0) - action.amountP50);
+        if (shortfallAmount <= 0) {
+          // Compute the actual uncovered shortfall
+          const totalShortfall = allocatedMap.get(`${action.toProvider}|${currency}`) ?? 0;
+          const provBal = balanceMap.get(`${action.toProvider}|${currency}`) ?? 0;
+          const uncovered = Math.max(0, totalShortfall - provBal) - action.amountP50;
+          if (uncovered <= 0) continue;
+          // Try FX swap for uncovered amount
+          for (const sellCcy of FX_SELL_ORDER) {
+            if (sellCcy === currency) continue;
+            const rateKey = `${sellCcy}|${currency}`;
+            const fxRate = fxRates.get(rateKey);
+            if (!fxRate) continue;
+            const sellAmount = uncovered / fxRate;
+            const neoBal = balanceMap.get(`NEO|${sellCcy}`) ?? 0;
+            if (neoBal < sellAmount) continue;
+            const fxCostBps = currencyRails.find(
+              cr => normalize(cr.provider) === "NEO" && normalize(cr.currency) === sellCcy
+            )?.fxCostBps ?? 0;
+            const rail = currencyRails.find(
+              cr => normalize(cr.provider) === action.toProvider && normalize(cr.currency) === currency
+            );
+            const payoutCutoffUtc = rail?.payoutCutoffUtc ?? null;
+            const minutesUntilCutoff = payoutCutoffUtc && payoutCutoffUtc !== "TBC"
+              ? computeMinutesUntilCutoff(payoutCutoffUtc, false) : null;
+            fxSwapActions.push({
+              type: "fx_swap",
+              shortfallCurrency: currency,
+              shortfallProvider: action.toProvider,
+              shortfallAmount: uncovered,
+              sellCurrency: sellCcy,
+              sellProvider: "NEO",
+              sellAmount,
+              fxRate,
+              fxRateDate: fxRateDate ?? null,
+              fxCostBps,
+              urgency: action.urgency,
+              minutesUntilCutoff,
+              fundingCutoffUtc: payoutCutoffUtc,
+            });
+            break;
+          }
+        }
+      }
+    }
+
     forecasts.push({
       currency, demandTodayP50, demandTodayP75, demandTomorrowP50, demandTomorrowP75,
-      totalCurrentBalance, totalAllocated, actions,
+      totalCurrentBalance, totalAllocated, actions, fxSwapActions,
     });
   }
 

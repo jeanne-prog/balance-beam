@@ -169,6 +169,7 @@ export function useCurrenciesMatrix() {
       fundingCutoffUtc: strOrNull(r.funding_cutoff_utc),
       payoutCutoffUtc: strOrNull(r.payout_cutoff_utc),
       holidayCalendar: str(r.holiday_calendar),
+      fxCostBps: parseNumber(r.fx_cost_bps ?? 0),
     }))
   );
 }

@@ -74,6 +74,7 @@ export interface CurrencyRail {
   fundingCutoffUtc: string | null;
   payoutCutoffUtc: string | null;
   holidayCalendar: string;
+  fxCostBps: number;
 }
 
 // ── Banned lists ──────────────────────────────────────────

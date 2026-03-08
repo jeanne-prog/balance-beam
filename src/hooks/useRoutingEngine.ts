@@ -35,7 +35,12 @@ import type { RoutingSuggestion, RoutingRule } from "@/types";
 import type { LiquidityForecast, IncomingTransferSummary } from "@/lib/fundMovements";
 import { usePlannedTransfers } from "@/contexts/PlannedTransfersContext";
 
-export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorHeldIds: Set<string> = new Set()) {
+export function useRoutingEngine(
+  releasedIds: Set<string> = new Set(),
+  operatorHeldIds: Set<string> = new Set(),
+  fxRates?: Map<string, number>,
+  fxRateDate?: string | null,
+) {
   const allTx = useTransactions();
   const balances = useBalances();
   const currencies = useCurrenciesMatrix();
@@ -210,8 +215,10 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
       routingRules.data ?? [],
       results,
       cohortRates,
+      fxRates,
+      fxRateDate,
     );
-  }, [allTx.data, balances.data, currencies.data, routingRules.data, results, cohortRates, effectiveBalances]);
+  }, [allTx.data, balances.data, currencies.data, routingRules.data, results, cohortRates, effectiveBalances, fxRates, fxRateDate]);
 
   return {
     pendingPayouts,

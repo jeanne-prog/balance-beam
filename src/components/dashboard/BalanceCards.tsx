@@ -121,6 +121,18 @@ export function BalanceCards({ balances, routingProviders, allocated, isLoading,
                           </span>
                         </div>
                       )}
+                      {(() => {
+                        const outgoingAmt = incomingTransfers?.outgoing?.get(allocKey) ?? 0;
+                        if (outgoingAmt <= 0) return null;
+                        return (
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-[hsl(var(--status-danger))]">− outgoing (planned)</span>
+                            <span className="font-mono-numbers text-[hsl(var(--status-danger))]">
+                              {formatCurrency(outgoingAmt, currency)}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}

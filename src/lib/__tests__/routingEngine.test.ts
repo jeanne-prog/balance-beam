@@ -52,6 +52,7 @@ function makeRail(overrides: Partial<CurrencyRail> = {}): CurrencyRail {
     fundingCutoffUtc: "12:00",
     payoutCutoffUtc: "14:00",
     holidayCalendar: "EUR",
+    fxCostBps: 0,
     ...overrides,
   };
 }
