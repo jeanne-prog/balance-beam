@@ -128,7 +128,7 @@ export function useRoutingEngine(
     return computeIncomingTransfers(plannedTransfers, inFlightTransfers);
   }, [plannedTransfers, inFlightTransfers]);
 
-  const results = useMemo(() => {
+  const routingContext = useMemo<RoutingContext | null>(() => {
     if (
       isLoading ||
       !allTx.data ||
@@ -142,7 +142,7 @@ export function useRoutingEngine(
       !senderMatrix.data ||
       !receiverMatrix.data
     ) {
-      return new Map<string, RoutingSuggestion[]>();
+      return null;
     }
 
     const weights: ScoringWeights = {
@@ -154,7 +154,7 @@ export function useRoutingEngine(
 
     const sepaSet = new Set((sepaCountriesQuery.data ?? []).map((s) => s.countryCode));
 
-    const ctx: RoutingContext = {
+    return {
       currencyRails: currencies.data,
       senderCountryMatrix: senderMatrix.data,
       receiverCountryMatrix: receiverMatrix.data,
@@ -169,8 +169,6 @@ export function useRoutingEngine(
       sepaCountries: sepaSet,
       weights,
     };
-
-    return scoreAllTransactions(pendingPayouts, ctx, operatorHeldIds);
   }, [
     isLoading,
     allTx.data,
@@ -186,10 +184,16 @@ export function useRoutingEngine(
     providerManual.data,
     sepaCountriesQuery.data,
     weightsMap,
-    pendingPayouts,
-    operatorHeldIds,
     effectiveBalances,
   ]);
+
+  const results = useMemo(() => {
+    if (!routingContext) {
+      return new Map<string, RoutingSuggestion[]>();
+    }
+
+    return scoreAllTransactions(pendingPayouts, routingContext, operatorHeldIds);
+  }, [routingContext, pendingPayouts, operatorHeldIds]);
 
   const flowTargetProgress = useMemo(() => {
     if (!flowTargets.data || !allTx.data) return [];
