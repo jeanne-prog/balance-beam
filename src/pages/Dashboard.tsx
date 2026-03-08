@@ -98,9 +98,9 @@ const Dashboard = () => {
 
   const allocated = useMemo(() => {
     const map = new Map<string, number>();
-    for (const tx of pendingPayouts) {
+    for (const tx of allPendingPayouts) {
       if (operatorHeldIds.has(tx.transactionId)) continue;
-      const sugs = suggestions.get(tx.transactionId) ?? [];
+      const sugs = allSuggestions.get(tx.transactionId) ?? [];
       const overrideKey = overrides.get(tx.transactionId);
       let selected: { provider: string } | undefined;
       if (overrideKey) {
@@ -115,7 +115,7 @@ const Dashboard = () => {
       }
     }
     return map;
-  }, [pendingPayouts, suggestions, overrides, operatorHeldIds]);
+  }, [allPendingPayouts, allSuggestions, overrides, operatorHeldIds]);
 
   // Funding gap: providers where effective balance - allocated < 0
   const fundingGaps = useMemo(() => {
