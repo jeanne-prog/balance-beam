@@ -342,15 +342,14 @@ Deno.serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      // Read all tabs in parallel
-      const results = await Promise.all(
-        tabKeys.map(async (tk) => {
-          const rows = await readSheet(token, spreadsheetId, TABS[tk]);
-          return { tab: tk, data: rowsToObjects(rows) };
-        })
-      );
+      const tabNames = tabKeys.map((tk) => TABS[tk]);
+      const rowsByTabName = await readSheetsBatch(token, spreadsheetId, tabNames);
+
       const batchResult: Record<string, Record<string, unknown>[]> = {};
-      for (const r of results) batchResult[r.tab] = r.data;
+      for (const tk of tabKeys) {
+        const rows = rowsByTabName[TABS[tk]] ?? [];
+        batchResult[tk] = rowsToObjects(rows);
+      }
       return new Response(JSON.stringify(batchResult), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
