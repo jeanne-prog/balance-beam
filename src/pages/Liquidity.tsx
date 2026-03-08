@@ -206,7 +206,7 @@ const Liquidity = () => {
         </p>
       </div>
 
-      <BalanceCards balances={effectiveBalances} routingProviders={routingProviders} allocated={emptyAllocated} isLoading={isLoading} incomingTransfers={incomingTransfers} />
+      <BalanceCards balances={effectiveBalances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} incomingTransfers={incomingTransfers} />
 
       {/* Section 1 — Action needed now */}
       <div className="space-y-3">
@@ -222,22 +222,58 @@ const Liquidity = () => {
           </div>
         )}
 
-        {todayActions.map(({ action, fxSwaps }, i) => (
-          <div key={`${action.toProvider}-${action.currency}-${i}`} className="space-y-2">
-            {action.amountP50 > 0 && (
-              <TransferActionCard action={action} plannedTransfers={plannedTransfers} />
-            )}
-            {fxSwaps.map((swap, j) => (
-              <FxSwapCard key={`swap-${j}`} swap={swap} />
-            ))}
-            {action.amountP50 === 0 && fxSwaps.length === 0 && (
-              <div className="rounded-lg border-2 border-[hsl(var(--status-warning)/0.4)] bg-[hsl(var(--status-warning-bg))] p-3 flex items-center gap-2 text-xs text-[hsl(var(--status-warning))]">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                No Neo liquidity available for {action.toProvider} {action.currency} gap
+        {todayActions.map(({ gap, forecastAction, fxSwaps }, i) => {
+          // Check if covered by planned transfer
+          const coveredPlanned = plannedTransfers.find(
+            t => t.toProvider.toUpperCase() === gap.provider.toUpperCase() &&
+                 t.currency.toUpperCase() === gap.currency.toUpperCase() &&
+                 t.amount >= gap.shortfall
+          );
+
+          if (coveredPlanned) {
+            return (
+              <div key={`${gap.provider}-${gap.currency}-${i}`} className="rounded-lg border-2 border-[hsl(var(--status-positive)/0.4)] bg-[hsl(var(--status-positive-bg))] p-3">
+                <div className="flex items-center gap-2 text-sm text-[hsl(var(--status-positive))]">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span className="font-medium">
+                    {gap.provider} {gap.currency}: Covered by planned transfer of {fmt(coveredPlanned.amount, coveredPlanned.currency)}
+                  </span>
+                </div>
               </div>
-            )}
-          </div>
-        ))}
+            );
+          }
+
+          return (
+            <div key={`${gap.provider}-${gap.currency}-${i}`} className="space-y-2">
+              {forecastAction ? (
+                <TransferActionCard action={forecastAction} plannedTransfers={[]} />
+              ) : (
+                <div className="rounded-lg border-2 border-[hsl(var(--status-danger)/0.5)] bg-card p-3">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <ProviderBadge provider="NEO" />
+                      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                      <ProviderBadge provider={gap.provider} />
+                    </div>
+                    <span className="font-mono-numbers text-sm font-semibold">
+                      {fmt(gap.shortfall, gap.currency)}
+                    </span>
+                    <Badge className="text-xs bg-[hsl(var(--status-danger))] text-white">shortfall</Badge>
+                  </div>
+                </div>
+              )}
+              {fxSwaps.map((swap, j) => (
+                <FxSwapCard key={`swap-${j}`} swap={swap} />
+              ))}
+              {!forecastAction && fxSwaps.length === 0 && (
+                <div className="rounded-lg border-2 border-[hsl(var(--status-warning)/0.4)] bg-[hsl(var(--status-warning-bg))] p-3 flex items-center gap-2 text-xs text-[hsl(var(--status-warning))]">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  No Neo liquidity available for {gap.provider} {gap.currency} gap
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Plan a transfer */}
