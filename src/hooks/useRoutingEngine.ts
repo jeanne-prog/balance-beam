@@ -195,6 +195,11 @@ export function useRoutingEngine(
     return scoreAllTransactions(pendingPayouts, routingContext, operatorHeldIds);
   }, [routingContext, pendingPayouts, operatorHeldIds]);
 
+  const allSuggestions = useMemo(() => {
+    if (!routingContext) return new Map<string, RoutingSuggestion[]>();
+    return scoreAllTransactions(allPendingPayouts, routingContext, operatorHeldIds);
+  }, [routingContext, allPendingPayouts, operatorHeldIds]);
+
   const flowTargetProgress = useMemo(() => {
     if (!flowTargets.data || !allTx.data) return [];
     return getProviderFlowPcts(flowTargets.data, allTx.data);
@@ -212,9 +217,6 @@ export function useRoutingEngine(
 
   const liquidityForecast = useMemo<LiquidityForecast[]>(() => {
     if (!allTx.data || !balances.data || !currencies.data || !cohortRates || !routingContext) return [];
-
-    // Score ALL pending payouts (not just due-today) to get accurate allocation map
-    const allSuggestions = scoreAllTransactions(allPendingPayouts, routingContext, operatorHeldIds);
 
     return computeLiquidityForecast(
       allTx.data,
@@ -235,9 +237,7 @@ export function useRoutingEngine(
     effectiveBalances,
     fxRates,
     fxRateDate,
-    allPendingPayouts,
-    routingContext,
-    operatorHeldIds,
+    allSuggestions,
   ]);
 
   return {
@@ -245,6 +245,7 @@ export function useRoutingEngine(
     heldBackPayouts,
     allPendingPayouts,
     suggestions: results,
+    allSuggestions,
     balances: balances.data ?? [],
     effectiveBalances,
     incomingTransfers,
