@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { readTab, writeTab, appendTab, type TabKey } from "@/lib/sheets";
+import { readTab, readTabsBatch, type TabKey } from "@/lib/sheets";
 import type { CohortRateRow } from "@/lib/fundMovements";
 import type {
   Transaction,
@@ -14,6 +14,38 @@ import type {
   ProviderManual,
 } from "@/types";
 
+/* ── Batch prefetch — loads all routing tabs in 1 HTTP call ── */
+
+const ROUTING_TABS: TabKey[] = [
+  "transactions", "accounts", "senderCountryMatrix", "receiverCountryMatrix",
+  "routingRules", "currenciesMatrix", "benesBanned", "sendersBanned",
+  "swiftCodesBanned", "lightKycSenders", "flowTargets", "providerManual",
+  "cohortRates", "sepaCountries", "payments",
+];
+
+/**
+ * Call once at app-level to prefetch all routing data in a single request.
+ * Individual useSheetTab hooks will read from the cache.
+ */
+export function usePrefetchSheetData() {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: ["sheet", "__batch"],
+    queryFn: async () => {
+      const batch = await readTabsBatch(ROUTING_TABS);
+      // Seed individual query caches so useSheetTab hooks resolve instantly
+      for (const tab of ROUTING_TABS) {
+        if (batch[tab]) {
+          qc.setQueryData(["sheet", tab], batch[tab]);
+        }
+      }
+      return true;
+    },
+    staleTime: 5 * 60_000, // 5 min
+    refetchOnWindowFocus: false,
+  });
+}
+
 /* ── Generic hook for any tab ────────────────────────────── */
 
 export function useSheetTab<T = Record<string, unknown>>(
@@ -27,7 +59,8 @@ export function useSheetTab<T = Record<string, unknown>>(
       const raw = await readTab(tab);
       return transform ? transform(raw) : (raw as unknown as T[]);
     },
-    staleTime: 30_000,
+    staleTime: 5 * 60_000, // 5 min — data changes rarely
+    refetchOnWindowFocus: false,
     enabled,
   });
 }
