@@ -241,7 +241,6 @@ export function useRoutingEngine(
     heldBackPayouts,
     allPendingPayouts,
     suggestions: results,
-    suggestions: results,
     balances: balances.data ?? [],
     effectiveBalances,
     incomingTransfers,
