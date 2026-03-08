@@ -2,9 +2,12 @@ import { Outlet, Navigate } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
 import { TopBar } from "./TopBar";
 import { useAuthContext } from "@/contexts/AuthContext";
+import { usePrefetchSheetData } from "@/hooks/useSheetData";
 
 export function AppLayout() {
   const { user, loading } = useAuthContext();
+  // Prefetch all sheet data in a single batch request
+  usePrefetchSheetData();
 
   if (loading) return null;
   if (!user) return <Navigate to="/auth" replace />;

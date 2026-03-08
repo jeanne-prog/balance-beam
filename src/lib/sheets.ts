@@ -52,6 +52,30 @@ export async function readTab(tab: TabKey): Promise<Record<string, unknown>[]> {
   return result.data;
 }
 
+/**
+ * Read multiple tabs in a single HTTP call.
+ * Returns a map from tab key to rows.
+ */
+export async function readTabsBatch(tabs: TabKey[]): Promise<Record<TabKey, Record<string, unknown>[]>> {
+  const resp = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sheets-proxy?action=readBatch&tabs=${tabs.join(",")}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+    }
+  );
+
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    throw new Error(`sheets-proxy readBatch failed: ${errBody}`);
+  }
+
+  return resp.json();
+}
+
 export async function writeTab(
   tab: TabKey,
   range: string,
