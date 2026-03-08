@@ -223,7 +223,7 @@ export function useRoutingEngine(
       effectiveBalances,
       currencies.data,
       routingRules.data ?? [],
-      allSuggestions,
+      results,
       cohortRates,
       fxRates,
       fxRateDate,
@@ -237,7 +237,7 @@ export function useRoutingEngine(
     effectiveBalances,
     fxRates,
     fxRateDate,
-    allSuggestions,
+    results,
   ]);
 
   return {
