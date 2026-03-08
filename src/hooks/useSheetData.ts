@@ -57,9 +57,10 @@ export function useSheetTab<T = Record<string, unknown>>(
     queryKey: ["sheet", tab],
     queryFn: async () => {
       const raw = await readTab(tab);
-      return transform ? transform(raw) : (raw as unknown as T[]);
+      return raw;
     },
-    staleTime: 5 * 60_000, // 5 min — data changes rarely
+    select: transform ? (raw: Record<string, unknown>[]) => transform(raw) : undefined,
+    staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     enabled,
   });
