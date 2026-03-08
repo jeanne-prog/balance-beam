@@ -535,7 +535,7 @@ export function computeLiquidityForecast(
   for (const tx of allTransactions) {
     if (tx.status !== "pending_payout") continue;
     const sugs = currentSuggestions.get(tx.transactionId) ?? [];
-    const top = sugs.find(s => s.score > 0 && s.balanceSufficient);
+    const top = sugs.find(s => s.score > 0);
     if (top) {
       const key = `${normalize(top.provider)}|${normalize(tx.receiverCurrency)}`;
       allocatedMap.set(key, (allocatedMap.get(key) ?? 0) + tx.receiverAmount);
