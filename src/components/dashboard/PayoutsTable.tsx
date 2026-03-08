@@ -102,8 +102,8 @@ export function PayoutsTable({ transactions, heldBackTransactions = [], suggesti
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-8" />
-                <TableHead className="w-[110px]">Reference</TableHead>
+                <TableHead className="w-6 px-1" />
+                <TableHead className="w-[90px] max-w-[90px]">Reference</TableHead>
                 <TableHead>Sender</TableHead>
                 <TableHead>Beneficiary</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
