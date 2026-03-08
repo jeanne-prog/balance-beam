@@ -196,6 +196,19 @@ export function useRoutingEngine(
   }, [routingContext, pendingPayouts, operatorHeldIds]);
 
 
+  const allocatedMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const tx of pendingPayouts) {
+      const sugs = results.get(tx.transactionId) ?? [];
+      const top = sugs.find(s => s.score > 0);
+      if (top) {
+        const key = `${top.provider.toUpperCase()}|${tx.receiverCurrency.toUpperCase()}`;
+        map.set(key, (map.get(key) ?? 0) + tx.receiverAmount);
+      }
+    }
+    return map;
+  }, [pendingPayouts, results]);
+
   const flowTargetProgress = useMemo(() => {
     if (!flowTargets.data || !allTx.data) return [];
     return getProviderFlowPcts(flowTargets.data, allTx.data);
@@ -221,6 +234,7 @@ export function useRoutingEngine(
       routingRules.data ?? [],
       results,
       cohortRates,
+      allocatedMap,
       fxRates,
       fxRateDate,
     );
@@ -234,6 +248,7 @@ export function useRoutingEngine(
     fxRates,
     fxRateDate,
     results,
+    allocatedMap,
   ]);
 
   return {
