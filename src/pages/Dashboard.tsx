@@ -47,7 +47,7 @@ const Dashboard = () => {
       let selected: { provider: string } | undefined;
       if (overrideKey) {
         const [prov] = overrideKey.split("|");
-        selected = sugs.find((s) => s.provider === prov && s.score > 0) ?? sugs.find((s) => s.score > 0 && s.balanceSufficient);
+        selected = sugs.find((s) => s.provider === prov);
       } else {
         selected = sugs.find((s) => s.score > 0 && s.balanceSufficient);
       }
