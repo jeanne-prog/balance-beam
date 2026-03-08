@@ -12,6 +12,8 @@ import {
   SlidersHorizontal,
   Lock,
   TrendingUp,
+  Globe,
+  Coins,
 } from "lucide-react";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
