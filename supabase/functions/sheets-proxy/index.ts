@@ -266,14 +266,17 @@ Deno.serve(async (req) => {
     
     if (!action) action = "read";
 
-    if (!tabKey || !(tabKey in TABS)) {
+    // readBatch doesn't need a single tab param
+    if (action === "readBatch") {
+      // handled below
+    } else if (!tabKey || !(tabKey in TABS)) {
       return new Response(
         JSON.stringify({ error: `Invalid tab. Valid tabs: ${Object.keys(TABS).join(", ")}` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const tabName = TABS[tabKey];
+    const tabName = tabKey ? TABS[tabKey] : "";
 
     if (action === "read") {
       const rows = await readSheet(token, spreadsheetId, tabName);
