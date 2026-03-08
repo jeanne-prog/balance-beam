@@ -514,6 +514,8 @@ export function computeLiquidityForecast(
   routingRules: RoutingRule[],
   currentSuggestions: Map<string, RoutingSuggestion[]>,
   cohortRates: CohortRates,
+  fxRates?: Map<string, number>,
+  fxRateDate?: string | null,
 ): LiquidityForecast[] {
   const avgDailyVolume = computeAvgDailyVolume(allTransactions);
   const routingShares = computeRoutingShares(allTransactions);
