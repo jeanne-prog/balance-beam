@@ -82,7 +82,7 @@ const Dashboard = () => {
       return next;
     });
   }, []);
-  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, allSuggestions, balances, effectiveBalances, incomingTransfers, routingProviders, flowTargetProgress, routingRules, isLoading, error } = useRoutingEngine(releasedIds, operatorHeldIds);
+  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, effectiveBalances, incomingTransfers, routingProviders, flowTargetProgress, routingRules, isLoading, error } = useRoutingEngine(releasedIds, operatorHeldIds);
 
   // Filter state — local to Dashboard
   const [filters, setFilters] = useState<PayoutsFilters>({ search: "", currency: "", status: "", provider: "" });
