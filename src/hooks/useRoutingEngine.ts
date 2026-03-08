@@ -215,8 +215,10 @@ export function useRoutingEngine(
       routingRules.data ?? [],
       results,
       cohortRates,
+      fxRates,
+      fxRateDate,
     );
-  }, [allTx.data, balances.data, currencies.data, routingRules.data, results, cohortRates, effectiveBalances]);
+  }, [allTx.data, balances.data, currencies.data, routingRules.data, results, cohortRates, effectiveBalances, fxRates, fxRateDate]);
 
   return {
     pendingPayouts,
