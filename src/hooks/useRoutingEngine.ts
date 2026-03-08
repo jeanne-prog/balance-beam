@@ -29,11 +29,11 @@ import {
   parseCohortRates,
   computeEffectiveBalances,
   computeIncomingTransfers,
-  type PlannedTransfer,
 } from "@/lib/fundMovements";
 import { isTransactionDueForPayout } from "@/lib/routingRules";
 import type { RoutingSuggestion, RoutingRule } from "@/types";
 import type { LiquidityForecast, IncomingTransferSummary } from "@/lib/fundMovements";
+import { usePlannedTransfers } from "@/contexts/PlannedTransfersContext";
 
 export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorHeldIds: Set<string> = new Set()) {
   const allTx = useTransactions();
