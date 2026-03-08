@@ -138,48 +138,64 @@ const Liquidity = () => {
   const { rates: fxRates, rateDate: fxRateDate, loading: fxLoading } = useFxRates();
   const {
     liquidityForecast, balances, effectiveBalances, incomingTransfers,
-    routingProviders, plannedTransfers, addPlannedTransfer, removePlannedTransfer, isLoading,
+    routingProviders, plannedTransfers, addPlannedTransfer, removePlannedTransfer,
+    pendingPayouts, suggestions, isLoading,
   } = useRoutingEngine(new Set(), new Set(), fxRates, fxRateDate);
 
   const [showTomorrow, setShowTomorrow] = useState(false);
   const [showForecast, setShowForecast] = useState(false);
 
-  const emptyAllocated = useMemo(() => new Map<string, number>(), []);
-
-  // Separate today and tomorrow actions
-  const todayActions = useMemo(() => {
-    const items: { action: FundingAction; fxSwaps: FxSwapAction[] }[] = [];
-    for (const f of liquidityForecast) {
-      for (const a of f.actions) {
-        if (a.horizon !== "today") continue;
-        const swaps = f.fxSwapActions.filter(s => s.shortfallProvider === a.toProvider && s.shortfallCurrency === a.currency);
-        items.push({ action: a, fxSwaps: swaps });
-      }
-      // FX swaps that don't correspond to a regular action
-      for (const s of f.fxSwapActions) {
-        const hasAction = items.some(i => i.action.toProvider === s.shortfallProvider && i.action.currency === s.shortfallCurrency);
-        if (!hasAction) {
-          items.push({
-            action: {
-              currency: s.shortfallCurrency, amountP50: 0, amountP75: 0,
-              fromProvider: "NEO", toProvider: s.shortfallProvider, horizon: "today",
-              demandBreakdown: { confirmedPendingPayout: 0, heldBackDueToday: 0, fromPendingCollection: 0, fromDraftPending: 0, fromNewVolume: 0 },
-              fundingCutoffUtc: s.fundingCutoffUtc, minutesUntilCutoff: s.minutesUntilCutoff, cutoffIsTomorrow: false,
-              urgency: s.urgency, p50Covered: false, p75Covered: false, neoInsufficient: true,
-            },
-            fxSwaps: [s],
-          });
-        }
+  // Build allocated map from routing suggestions (same logic as Dashboard)
+  const allocated = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const tx of pendingPayouts) {
+      const sugs = suggestions.get(tx.transactionId) ?? [];
+      const selected = sugs.find((s) => s.score > 0 && s.balanceSufficient);
+      if (selected) {
+        const key = `${selected.provider}|${tx.receiverCurrency.toUpperCase()}`;
+        map.set(key, (map.get(key) ?? 0) + tx.receiverAmount);
       }
     }
-    return items;
-  }, [liquidityForecast]);
+    return map;
+  }, [pendingPayouts, suggestions]);
+
+  // Compute gaps: allocated > effectiveBalance (consistent with Dashboard)
+  const gaps = useMemo(() => {
+    const balMap = new Map<string, number>();
+    for (const b of effectiveBalances) {
+      const key = `${b.provider.toUpperCase()}|${b.currency.toUpperCase()}`;
+      balMap.set(key, (balMap.get(key) ?? 0) + b.currentBalance);
+    }
+    const result: { provider: string; currency: string; shortfall: number }[] = [];
+    for (const [key, allocAmt] of allocated) {
+      const bal = balMap.get(key) ?? 0;
+      const diff = allocAmt - bal;
+      if (diff > 0) {
+        const [provider, currency] = key.split("|");
+        result.push({ provider, currency, shortfall: diff });
+      }
+    }
+    return result;
+  }, [effectiveBalances, allocated]);
+
+  const hasGaps = gaps.length > 0;
+
+  // Build todayActions from gaps, enriched with forecast metadata
+  const todayActions = useMemo(() => {
+    return gaps.map(gap => {
+      const forecastAction = liquidityForecast
+        .flatMap(f => f.actions)
+        .find(a => a.toProvider === gap.provider.toUpperCase() && a.currency === gap.currency.toUpperCase() && a.horizon === "today");
+      const fxSwaps = liquidityForecast
+        .flatMap(f => f.fxSwapActions ?? [])
+        .filter(s => s.shortfallProvider === gap.provider.toUpperCase() && s.shortfallCurrency === gap.currency.toUpperCase());
+      return { gap, forecastAction: forecastAction ?? null, fxSwaps };
+    });
+  }, [gaps, liquidityForecast]);
 
   const tomorrowActions = useMemo(() => {
     return liquidityForecast.flatMap(f => f.actions.filter(a => a.horizon === "tomorrow"));
   }, [liquidityForecast]);
-
-  const hasGaps = todayActions.length > 0;
 
   return (
     <div className="space-y-6">
