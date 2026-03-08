@@ -211,18 +211,34 @@ export function useRoutingEngine(
   }, [cohortRatesQuery.data]);
 
   const liquidityForecast = useMemo<LiquidityForecast[]>(() => {
-    if (!allTx.data || !balances.data || !currencies.data || !cohortRates) return [];
+    if (!allTx.data || !balances.data || !currencies.data || !cohortRates || !routingContext) return [];
+
+    // Score ALL pending payouts (not just due-today) to get accurate allocation map
+    const allSuggestions = scoreAllTransactions(allPendingPayouts, routingContext, operatorHeldIds);
+
     return computeLiquidityForecast(
       allTx.data,
       effectiveBalances,
       currencies.data,
       routingRules.data ?? [],
-      results,
+      allSuggestions,
       cohortRates,
       fxRates,
       fxRateDate,
     );
-  }, [allTx.data, balances.data, currencies.data, routingRules.data, results, cohortRates, effectiveBalances, fxRates, fxRateDate]);
+  }, [
+    allTx.data,
+    balances.data,
+    currencies.data,
+    routingRules.data,
+    cohortRates,
+    effectiveBalances,
+    fxRates,
+    fxRateDate,
+    allPendingPayouts,
+    routingContext,
+    operatorHeldIds,
+  ]);
 
   return {
     pendingPayouts,
