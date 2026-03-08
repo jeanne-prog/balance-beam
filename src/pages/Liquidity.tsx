@@ -223,7 +223,6 @@ const Liquidity = () => {
         )}
 
         {todayActions.map(({ gap, forecastAction, fxSwaps }, i) => {
-          // Check if covered by planned transfer
           const coveredPlanned = plannedTransfers.find(
             t => t.toProvider.toUpperCase() === gap.provider.toUpperCase() &&
                  t.currency.toUpperCase() === gap.currency.toUpperCase() &&
@@ -245,16 +244,15 @@ const Liquidity = () => {
 
           return (
             <div key={`${gap.provider}-${gap.currency}-${i}`} className="space-y-2">
-              {forecastAction ? (
-                <TransferActionCard action={forecastAction} plannedTransfers={[]} />
-              ) : (
+              {forecastAction && forecastAction.amountP50 > 0 && (
+                <TransferActionCard action={forecastAction} plannedTransfers={plannedTransfers} />
+              )}
+              {!forecastAction && fxSwaps.length === 0 && (
                 <div className="rounded-lg border-2 border-[hsl(var(--status-danger)/0.5)] bg-card p-3">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <div className="flex items-center gap-2">
-                      <ProviderBadge provider="NEO" />
-                      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-                      <ProviderBadge provider={gap.provider} />
-                    </div>
+                    <ProviderBadge provider="NEO" />
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                    <ProviderBadge provider={gap.provider} />
                     <span className="font-mono-numbers text-sm font-semibold">
                       {fmt(gap.shortfall, gap.currency)}
                     </span>
@@ -265,12 +263,6 @@ const Liquidity = () => {
               {fxSwaps.map((swap, j) => (
                 <FxSwapCard key={`swap-${j}`} swap={swap} />
               ))}
-              {!forecastAction && fxSwaps.length === 0 && (
-                <div className="rounded-lg border-2 border-[hsl(var(--status-warning)/0.4)] bg-[hsl(var(--status-warning-bg))] p-3 flex items-center gap-2 text-xs text-[hsl(var(--status-warning))]">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  No Neo liquidity available for {gap.provider} {gap.currency} gap
-                </div>
-              )}
             </div>
           );
         })}
