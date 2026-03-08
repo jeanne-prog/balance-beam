@@ -532,14 +532,13 @@ export function computeLiquidityForecast(
   }
 
   const allocatedMap = new Map<string, number>();
-  for (const tx of allTransactions) {
-    if (tx.status !== "pending_payout") continue;
-    const sugs = currentSuggestions.get(tx.transactionId) ?? [];
+  for (const [txId, sugs] of currentSuggestions) {
     const top = sugs.find(s => s.score > 0);
-    if (top) {
-      const key = `${normalize(top.provider)}|${normalize(tx.receiverCurrency)}`;
-      allocatedMap.set(key, (allocatedMap.get(key) ?? 0) + tx.receiverAmount);
-    }
+    if (!top) continue;
+    const tx = allTransactions.find(t => t.transactionId === txId);
+    if (!tx) continue;
+    const key = `${normalize(top.provider)}|${normalize(tx.receiverCurrency)}`;
+    allocatedMap.set(key, (allocatedMap.get(key) ?? 0) + tx.receiverAmount);
   }
 
   const activeCurrencies = new Set<string>(["EUR", "USD"]);

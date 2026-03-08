@@ -82,7 +82,7 @@ const Dashboard = () => {
       return next;
     });
   }, []);
-  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, allSuggestions, balances, effectiveBalances, incomingTransfers, routingProviders, flowTargetProgress, routingRules, isLoading, error } = useRoutingEngine(releasedIds, operatorHeldIds);
+  const { pendingPayouts, heldBackPayouts, allPendingPayouts, suggestions, balances, effectiveBalances, incomingTransfers, routingProviders, flowTargetProgress, routingRules, isLoading, error } = useRoutingEngine(releasedIds, operatorHeldIds);
 
   // Filter state — local to Dashboard
   const [filters, setFilters] = useState<PayoutsFilters>({ search: "", currency: "", status: "", provider: "" });
@@ -98,9 +98,9 @@ const Dashboard = () => {
 
   const allocated = useMemo(() => {
     const map = new Map<string, number>();
-    for (const tx of allPendingPayouts) {
+    for (const tx of pendingPayouts) {
       if (operatorHeldIds.has(tx.transactionId)) continue;
-      const sugs = allSuggestions.get(tx.transactionId) ?? [];
+      const sugs = suggestions.get(tx.transactionId) ?? [];
       const overrideKey = overrides.get(tx.transactionId);
       let selected: { provider: string } | undefined;
       if (overrideKey) {
@@ -115,7 +115,7 @@ const Dashboard = () => {
       }
     }
     return map;
-  }, [allPendingPayouts, allSuggestions, overrides, operatorHeldIds]);
+  }, [pendingPayouts, suggestions, overrides, operatorHeldIds]);
 
   // Funding gap: providers where effective balance - allocated < 0
   const fundingGaps = useMemo(() => {

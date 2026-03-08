@@ -195,10 +195,6 @@ export function useRoutingEngine(
     return scoreAllTransactions(pendingPayouts, routingContext, operatorHeldIds);
   }, [routingContext, pendingPayouts, operatorHeldIds]);
 
-  const allSuggestions = useMemo(() => {
-    if (!routingContext) return new Map<string, RoutingSuggestion[]>();
-    return scoreAllTransactions(allPendingPayouts, routingContext, operatorHeldIds);
-  }, [routingContext, allPendingPayouts, operatorHeldIds]);
 
   const flowTargetProgress = useMemo(() => {
     if (!flowTargets.data || !allTx.data) return [];
@@ -223,7 +219,7 @@ export function useRoutingEngine(
       effectiveBalances,
       currencies.data,
       routingRules.data ?? [],
-      allSuggestions,
+      results,
       cohortRates,
       fxRates,
       fxRateDate,
@@ -237,7 +233,7 @@ export function useRoutingEngine(
     effectiveBalances,
     fxRates,
     fxRateDate,
-    allSuggestions,
+    results,
   ]);
 
   return {
@@ -245,7 +241,6 @@ export function useRoutingEngine(
     heldBackPayouts,
     allPendingPayouts,
     suggestions: results,
-    allSuggestions,
     balances: balances.data ?? [],
     effectiveBalances,
     incomingTransfers,
