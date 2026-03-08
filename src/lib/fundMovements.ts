@@ -131,6 +131,22 @@ export interface FundingAction {
   neoInsufficient: boolean;
 }
 
+export interface FxSwapAction {
+  type: "fx_swap";
+  shortfallCurrency: string;
+  shortfallProvider: string;
+  shortfallAmount: number;
+  sellCurrency: string;
+  sellProvider: string;
+  sellAmount: number;
+  fxRate: number;
+  fxRateDate: string | null;
+  fxCostBps: number;
+  urgency: "critical" | "high" | "medium" | "low";
+  minutesUntilCutoff: number | null;
+  fundingCutoffUtc: string | null;
+}
+
 export interface LiquidityForecast {
   currency: string;
   demandTodayP50: number;
@@ -140,6 +156,7 @@ export interface LiquidityForecast {
   totalCurrentBalance: number;
   totalAllocated: number;
   actions: FundingAction[];
+  fxSwapActions: FxSwapAction[];
 }
 
 // ── Helpers ───────────────────────────────────────────────
