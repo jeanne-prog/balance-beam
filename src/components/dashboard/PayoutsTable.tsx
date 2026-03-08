@@ -178,20 +178,6 @@ export function PayoutsTable({ transactions, heldBackTransactions = [], suggesti
                           <TableCell>
                             <Badge variant="outline" className="text-xs">{tx.receiverCountry}</Badge>
                           </TableCell>
-                          <TableCell>
-                            {(isHeld || isOperatorHeld) ? (
-                              <span className="text-xs text-muted-foreground">—</span>
-                            ) : top ? (
-                              <div className="flex items-center gap-1.5">
-                                <ProviderBadge provider={top.provider} />
-                                <span className="text-xs text-muted-foreground font-mono-numbers">{top.rail}</span>
-                              </div>
-                            ) : (
-                              <span className="flex items-center gap-1 text-xs text-[hsl(var(--status-warning))]">
-                                <AlertTriangle className="h-3 w-3" /> No route
-                              </span>
-                            )}
-                          </TableCell>
                           <TableCell onClick={(e) => e.stopPropagation()}>
                             {(isHeld || isOperatorHeld) ? (
                               <span className="text-xs text-muted-foreground">—</span>
