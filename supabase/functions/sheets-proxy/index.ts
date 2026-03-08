@@ -117,6 +117,45 @@ async function readSheet(
   return data.values || [];
 }
 
+async function readSheetsBatch(
+  token: string,
+  spreadsheetId: string,
+  tabs: string[]
+): Promise<Record<string, unknown[][]>> {
+  const params = new URLSearchParams();
+  for (const tab of tabs) {
+    params.append("ranges", tab);
+  }
+
+  const url = `${SHEETS_BASE}/${spreadsheetId}/values:batchGet?${params.toString()}`;
+  const resp = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error(`Sheets batch read error: ${err}`);
+  }
+
+  const payload = await resp.json();
+  const valueRanges = (payload.valueRanges ?? []) as Array<{ range?: string; values?: unknown[][] }>;
+  const rowsByTabName: Record<string, unknown[][]> = {};
+
+  for (const valueRange of valueRanges) {
+    const range = valueRange.range ?? "";
+    const tabName = range.split("!")[0]?.replace(/^'/, "").replace(/'$/, "");
+    if (tabName) {
+      rowsByTabName[tabName] = valueRange.values ?? [];
+    }
+  }
+
+  for (const tab of tabs) {
+    if (!rowsByTabName[tab]) rowsByTabName[tab] = [];
+  }
+
+  return rowsByTabName;
+}
+
 async function clearSheet(
   token: string,
   spreadsheetId: string,
@@ -303,15 +342,14 @@ Deno.serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      // Read all tabs in parallel
-      const results = await Promise.all(
-        tabKeys.map(async (tk) => {
-          const rows = await readSheet(token, spreadsheetId, TABS[tk]);
-          return { tab: tk, data: rowsToObjects(rows) };
-        })
-      );
+      const tabNames = tabKeys.map((tk) => TABS[tk]);
+      const rowsByTabName = await readSheetsBatch(token, spreadsheetId, tabNames);
+
       const batchResult: Record<string, Record<string, unknown>[]> = {};
-      for (const r of results) batchResult[r.tab] = r.data;
+      for (const tk of tabKeys) {
+        const rows = rowsByTabName[TABS[tk]] ?? [];
+        batchResult[tk] = rowsToObjects(rows);
+      }
       return new Response(JSON.stringify(batchResult), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
