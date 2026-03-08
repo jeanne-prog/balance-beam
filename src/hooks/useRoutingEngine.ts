@@ -204,7 +204,7 @@ export function useRoutingEngine(releasedIds: Set<string> = new Set(), operatorH
 
   const routingProviders = useMemo(() => {
     if (!currencies.data) return new Set<string>();
-    return new Set(currencies.data.map((cr) => cr.provider.toUpperCase()));
+    return new Set(currencies.data.map((cr) => (cr.provider ?? "").toUpperCase()).filter(Boolean));
   }, [currencies.data]);
 
   const cohortRates = useMemo(() => {
