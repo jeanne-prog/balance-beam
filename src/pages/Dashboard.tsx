@@ -19,9 +19,34 @@ function formatCurrency(amount: number, currency: string) {
 }
 
 const Dashboard = () => {
+  const { user } = useAuthContext();
+  const { data: decisions } = useRoutingDecisions();
+  const appendDecision = useAppendRoutingDecision();
+
   const [releasedIds, setReleasedIds] = useState<Set<string>>(new Set());
   const [overrides, setOverrides] = useState<Map<string, string>>(new Map());
   const [operatorHeldIds, setOperatorHeldIds] = useState<Set<string>>(new Set());
+  const [decisionsLoaded, setDecisionsLoaded] = useState(false);
+
+  // Initialise overrides from latest routing decisions
+  useEffect(() => {
+    if (decisions && !decisionsLoaded) {
+      const latestByTx = new Map<string, { provider: string; rail: string }>();
+      for (const d of decisions) {
+        const existing = latestByTx.get(d.transactionId);
+        if (!existing || d.routedAt > (latestByTx.get(d.transactionId) as any)._routedAt) {
+          latestByTx.set(d.transactionId, { provider: d.assignedProvider, rail: d.assignedRail });
+        }
+      }
+      const initial = new Map<string, string>();
+      for (const [txId, { provider, rail }] of latestByTx) {
+        initial.set(txId, `${provider}|${rail}`);
+      }
+      setOverrides(initial);
+      setDecisionsLoaded(true);
+    }
+  }, [decisions, decisionsLoaded]);
+
   const handleRelease = useCallback((txId: string) => {
     setReleasedIds((prev) => new Set(prev).add(txId));
   }, []);
@@ -31,7 +56,24 @@ const Dashboard = () => {
       if (value === "__recommended") { next.delete(txId); } else { next.set(txId, value); }
       return next;
     });
-  }, []);
+
+    // Persist routing decision
+    if (value !== "__recommended") {
+      const [provider, rail] = value.split("|");
+      const isPobo = value.includes("POBO");
+      appendDecision.mutate(
+        {
+          tab: "routingDecisions",
+          values: [[txId, provider, rail || "", isPobo ? "YES" : "NO", "manual", user?.email || "unknown", new Date().toISOString()]],
+        },
+        {
+          onError: (e) => {
+            toast({ title: "Failed to save routing decision", description: (e as Error).message, variant: "destructive" });
+          },
+        }
+      );
+    }
+  }, [appendDecision, user]);
   const handleToggleHold = useCallback((txId: string) => {
     setOperatorHeldIds((prev) => {
       const next = new Set(prev);
