@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, useIsFetching } from "@tanstack/react-query";
 import { readTab, readTabsBatch, writeTab, appendTab, type TabKey } from "@/lib/sheets";
 import type { CohortRateRow } from "@/lib/fundMovements";
 import type {
@@ -23,6 +23,9 @@ const ROUTING_TABS: TabKey[] = [
   "cohortRates", "sepaCountries", "payments",
 ];
 
+const ROUTING_TABS_SET = new Set<TabKey>(ROUTING_TABS);
+const SHEET_BATCH_QUERY_KEY = ["sheet", "__batch"] as const;
+
 /**
  * Call once at app-level to prefetch all routing data in a single request.
  * Individual useSheetTab hooks will read from the cache.
@@ -30,7 +33,7 @@ const ROUTING_TABS: TabKey[] = [
 export function usePrefetchSheetData() {
   const qc = useQueryClient();
   return useQuery({
-    queryKey: ["sheet", "__batch"],
+    queryKey: SHEET_BATCH_QUERY_KEY,
     queryFn: async () => {
       const batch = await readTabsBatch(ROUTING_TABS);
       // Seed individual query caches so useSheetTab hooks resolve instantly
@@ -43,6 +46,7 @@ export function usePrefetchSheetData() {
     },
     staleTime: 5 * 60_000, // 5 min
     refetchOnWindowFocus: false,
+    retry: 1,
   });
 }
 
@@ -53,16 +57,24 @@ export function useSheetTab<T = Record<string, unknown>>(
   transform?: (raw: Record<string, unknown>[]) => T[],
   enabled = true
 ) {
+  const qc = useQueryClient();
+  const batchFetching = useIsFetching({ queryKey: SHEET_BATCH_QUERY_KEY });
+
+  const cachedTabData = qc.getQueryData<Record<string, unknown>[]>(["sheet", tab]);
+  const shouldWaitForBatch = ROUTING_TABS_SET.has(tab) && !cachedTabData && batchFetching > 0;
+
   return useQuery({
     queryKey: ["sheet", tab],
     queryFn: async () => {
-      const raw = await readTab(tab);
-      return raw;
+      const cached = qc.getQueryData<Record<string, unknown>[]>(["sheet", tab]);
+      if (cached) return cached;
+      return readTab(tab);
     },
     select: transform ? (raw: Record<string, unknown>[]) => transform(raw) : undefined,
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
-    enabled,
+    enabled: enabled && !shouldWaitForBatch,
+    retry: 1,
   });
 }
 
