@@ -108,7 +108,7 @@ export function ConfigGrid({ tabKey, columns, title }: ConfigGridProps) {
         <Button size="sm" disabled={!dirty || writeSheet.isPending} onClick={handleSave}>
           <Save className="w-4 h-4 mr-1" />
           Save
-          {dirty && <span className="ml-1.5 w-2 h-2 rounded-full bg-amber-400 inline-block" />}
+          {dirty && <span className="ml-1.5 w-2 h-2 rounded-full bg-warning inline-block" />}
         </Button>
       </div>
 
