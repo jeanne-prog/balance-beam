@@ -217,8 +217,10 @@ export interface PlannedTransfer {
 export interface IncomingTransferSummary {
   /** "PROVIDER|CURRENCY" → inflight amount */
   inflight: Map<string, number>;
-  /** "PROVIDER|CURRENCY" → planned amount */
+  /** "PROVIDER|CURRENCY" → planned incoming amount */
   planned: Map<string, number>;
+  /** "PROVIDER|CURRENCY" → planned outgoing amount */
+  outgoing: Map<string, number>;
 }
 
 export function computeIncomingTransfers(
@@ -227,6 +229,7 @@ export function computeIncomingTransfers(
 ): IncomingTransferSummary {
   const inflight = new Map<string, number>();
   const planned = new Map<string, number>();
+  const outgoing = new Map<string, number>();
 
   for (const t of inFlightTransfers) {
     const resolved = resolveAccountProvider(t.toAccount);
@@ -237,11 +240,13 @@ export function computeIncomingTransfers(
   }
 
   for (const t of plannedTransfers) {
-    const key = `${normalize(t.toProvider)}|${normalize(t.currency)}`;
-    planned.set(key, (planned.get(key) ?? 0) + t.amount);
+    const toKey = `${normalize(t.toProvider)}|${normalize(t.currency)}`;
+    planned.set(toKey, (planned.get(toKey) ?? 0) + t.amount);
+    const fromKey = `${normalize(t.fromProvider)}|${normalize(t.currency)}`;
+    outgoing.set(fromKey, (outgoing.get(fromKey) ?? 0) + t.amount);
   }
 
-  return { inflight, planned };
+  return { inflight, planned, outgoing };
 }
 
 export function computeEffectiveBalances(
