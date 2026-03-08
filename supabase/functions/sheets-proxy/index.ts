@@ -117,6 +117,27 @@ async function readSheet(
   return data.values || [];
 }
 
+async function clearSheet(
+  token: string,
+  spreadsheetId: string,
+  tab: string
+): Promise<void> {
+  const url = `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent(tab)}:clear`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({}),
+  });
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error(`Sheets clear error (${tab}): ${err}`);
+  }
+  await resp.text();
+}
+
 async function writeSheet(
   token: string,
   spreadsheetId: string,
@@ -124,6 +145,9 @@ async function writeSheet(
   range: string,
   values: unknown[][]
 ): Promise<void> {
+  // Clear the entire sheet first to remove stale rows
+  await clearSheet(token, spreadsheetId, tab);
+  
   const url = `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent(tab)}!${range}?valueInputOption=USER_ENTERED`;
   const resp = await fetch(url, {
     method: "PUT",
@@ -137,7 +161,7 @@ async function writeSheet(
     const err = await resp.text();
     throw new Error(`Sheets write error (${tab}): ${err}`);
   }
-  await resp.text(); // consume body
+  await resp.text();
 }
 
 async function appendSheet(
