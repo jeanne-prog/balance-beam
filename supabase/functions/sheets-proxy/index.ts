@@ -23,6 +23,7 @@ const TABS = {
   cohortRates: "cohort_rates",
   sepaCountries: "sepa_countries",
   payments: "DB_payments",
+  routingDecisions: "routingDecisions",
 } as const;
 
 type TabKey = keyof typeof TABS;
