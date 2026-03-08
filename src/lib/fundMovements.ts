@@ -144,8 +144,8 @@ export interface LiquidityForecast {
 
 // ── Helpers ───────────────────────────────────────────────
 
-function normalize(s: string): string {
-  return s.trim().toUpperCase();
+function normalize(s: string | undefined | null): string {
+  return (s ?? "").trim().toUpperCase();
 }
 
 // ── Account name → provider lookup for in-flight transfers ──
