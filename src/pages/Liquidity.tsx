@@ -179,9 +179,9 @@ const Liquidity = () => {
       </div>
 
       <div className="space-y-1">
-        <BalanceCards balances={effectiveBalances} routingProviders={routingProviders} allocated={allocatedMap} isLoading={isLoading} incomingTransfers={incomingTransfers} />
+        <BalanceCards balances={effectiveBalances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} incomingTransfers={incomingTransfers} />
         <p className="text-xs text-muted-foreground px-1">
-          Allocation based on system routing recommendations. Dashboard may differ if manual overrides or holds are active.
+          Allocation reflects Dashboard routing decisions (including manual overrides and holds).
         </p>
       </div>
 
