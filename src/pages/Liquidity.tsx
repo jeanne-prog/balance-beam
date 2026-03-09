@@ -149,8 +149,28 @@ const Liquidity = () => {
   const [showTomorrow, setShowTomorrow] = useState(false);
   const [showForecast, setShowForecast] = useState(false);
 
-  const todayActions = useMemo(() =>
-    liquidityForecast.flatMap(f =>
+  // Primary: use Dashboard's override-aware funding gaps from context
+  const hasGaps = fundingGaps.length > 0;
+
+  // Enrich each funding gap with forecast metadata (transfer actions + FX swaps)
+  const gapActions = useMemo(() => {
+    const allActions = liquidityForecast.flatMap(f => f.actions);
+    const allSwaps = liquidityForecast.flatMap(f => f.fxSwapActions);
+    return fundingGaps.map(gap => {
+      const forecastAction = allActions.find(
+        a => a.toProvider === gap.provider && a.currency === gap.currency && a.horizon === "today"
+      );
+      const fxSwaps = allSwaps.filter(
+        s => s.shortfallProvider === gap.provider && s.shortfallCurrency === gap.currency
+      );
+      return { gap, forecastAction, fxSwaps };
+    });
+  }, [fundingGaps, liquidityForecast]);
+
+  // Fallback: system-recommended today actions (when Dashboard hasn't loaded yet)
+  const todayActionsFallback = useMemo(() => {
+    if (fundingGaps.length > 0) return [];
+    return liquidityForecast.flatMap(f =>
       f.actions
         .filter(a => a.horizon === "today")
         .map(a => ({
@@ -159,11 +179,10 @@ const Liquidity = () => {
             s.shortfallProvider === a.toProvider && s.shortfallCurrency === a.currency
           )
         }))
-    ),
-    [liquidityForecast]
-  );
+    );
+  }, [liquidityForecast, fundingGaps]);
 
-  const hasGaps = fundingGaps.length > 0 || todayActions.length > 0;
+  const hasAnyActions = hasGaps || todayActionsFallback.length > 0;
 
   const tomorrowActions = useMemo(() => {
     return liquidityForecast.flatMap(f => f.actions.filter(a => a.horizon === "tomorrow"));
