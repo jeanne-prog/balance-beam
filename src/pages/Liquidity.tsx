@@ -140,8 +140,11 @@ const Liquidity = () => {
   const {
     liquidityForecast, balances, effectiveBalances, incomingTransfers,
     routingProviders, plannedTransfers, addPlannedTransfer, removePlannedTransfer,
-    allocatedMap, isLoading,
+    isLoading,
   } = useRoutingEngine(new Set(), new Set(), fxRates, fxRateDate);
+
+  // Use Dashboard's override-aware allocation & gaps via shared context
+  const { allocated, fundingGaps } = useAllocation();
 
   const [showTomorrow, setShowTomorrow] = useState(false);
   const [showForecast, setShowForecast] = useState(false);
@@ -160,7 +163,7 @@ const Liquidity = () => {
     [liquidityForecast]
   );
 
-  const hasGaps = todayActions.length > 0;
+  const hasGaps = fundingGaps.length > 0 || todayActions.length > 0;
 
   const tomorrowActions = useMemo(() => {
     return liquidityForecast.flatMap(f => f.actions.filter(a => a.horizon === "tomorrow"));

@@ -138,6 +138,11 @@ const Dashboard = () => {
     return gaps;
   }, [effectiveBalances, allocated]);
 
+  // Sync override-aware allocation & gaps into shared context for Liquidity page
+  const { setAllocated: setSharedAllocated, setFundingGaps: setSharedFundingGaps } = useAllocation();
+  useEffect(() => { setSharedAllocated(allocated); }, [allocated, setSharedAllocated]);
+  useEffect(() => { setSharedFundingGaps(fundingGaps); }, [fundingGaps, setSharedFundingGaps]);
+
   if (error) {
     return (
       <div className="flex items-center gap-2 text-destructive p-4">
