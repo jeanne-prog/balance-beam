@@ -139,45 +139,27 @@ const Liquidity = () => {
   const {
     liquidityForecast, balances, effectiveBalances, incomingTransfers,
     routingProviders, plannedTransfers, addPlannedTransfer, removePlannedTransfer,
-    pendingPayouts, suggestions, allocatedMap: allocated, isLoading,
+    allocatedMap, isLoading,
   } = useRoutingEngine(new Set(), new Set(), fxRates, fxRateDate);
 
   const [showTomorrow, setShowTomorrow] = useState(false);
   const [showForecast, setShowForecast] = useState(false);
 
-  // Compute gaps: allocated > effectiveBalance (consistent with Dashboard)
-  const gaps = useMemo(() => {
-    const balMap = new Map<string, number>();
-    for (const b of effectiveBalances) {
-      const key = `${b.provider.toUpperCase()}|${b.currency.toUpperCase()}`;
-      balMap.set(key, (balMap.get(key) ?? 0) + b.currentBalance);
-    }
-    const result: { provider: string; currency: string; shortfall: number }[] = [];
-    for (const [key, allocAmt] of allocated) {
-      const bal = balMap.get(key) ?? 0;
-      const diff = allocAmt - bal;
-      if (diff > 0) {
-        const [provider, currency] = key.split("|");
-        result.push({ provider, currency, shortfall: diff });
-      }
-    }
-    return result;
-  }, [effectiveBalances, allocated]);
+  const todayActions = useMemo(() =>
+    liquidityForecast.flatMap(f =>
+      f.actions
+        .filter(a => a.horizon === "today")
+        .map(a => ({
+          action: a,
+          fxSwaps: f.fxSwapActions.filter(s =>
+            s.shortfallProvider === a.toProvider && s.shortfallCurrency === a.currency
+          )
+        }))
+    ),
+    [liquidityForecast]
+  );
 
-  const hasGaps = gaps.length > 0;
-
-  // Build todayActions from gaps, enriched with forecast metadata
-  const todayActions = useMemo(() => {
-    return gaps.map(gap => {
-      const forecastAction = liquidityForecast
-        .flatMap(f => f.actions)
-        .find(a => a.toProvider === gap.provider.toUpperCase() && a.currency === gap.currency.toUpperCase() && a.horizon === "today");
-      const fxSwaps = liquidityForecast
-        .flatMap(f => f.fxSwapActions ?? [])
-        .filter(s => s.shortfallProvider === gap.provider.toUpperCase() && s.shortfallCurrency === gap.currency.toUpperCase());
-      return { gap, forecastAction: forecastAction ?? null, fxSwaps };
-    });
-  }, [gaps, liquidityForecast]);
+  const hasGaps = todayActions.length > 0;
 
   const tomorrowActions = useMemo(() => {
     return liquidityForecast.flatMap(f => f.actions.filter(a => a.horizon === "tomorrow"));
@@ -193,7 +175,7 @@ const Liquidity = () => {
       </div>
 
       <div className="space-y-1">
-        <BalanceCards balances={effectiveBalances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} incomingTransfers={incomingTransfers} />
+        <BalanceCards balances={effectiveBalances} routingProviders={routingProviders} allocated={allocatedMap} isLoading={isLoading} incomingTransfers={incomingTransfers} />
         <p className="text-xs text-muted-foreground px-1">
           Allocation based on system routing recommendations. Dashboard may differ if manual overrides or holds are active.
         </p>
@@ -213,50 +195,16 @@ const Liquidity = () => {
           </div>
         )}
 
-        {todayActions.map(({ gap, forecastAction, fxSwaps }, i) => {
-          const coveredPlanned = plannedTransfers.find(
-            t => t.toProvider.toUpperCase() === gap.provider.toUpperCase() &&
-                 t.currency.toUpperCase() === gap.currency.toUpperCase() &&
-                 t.amount >= gap.shortfall
-          );
-
-          if (coveredPlanned) {
-            return (
-              <div key={`${gap.provider}-${gap.currency}-${i}`} className="rounded-lg border-2 border-[hsl(var(--status-positive)/0.4)] bg-[hsl(var(--status-positive-bg))] p-3">
-                <div className="flex items-center gap-2 text-sm text-[hsl(var(--status-positive))]">
-                  <CheckCircle2 className="h-4 w-4" />
-                  <span className="font-medium">
-                    {gap.provider} {gap.currency}: Covered by planned transfer of {fmt(coveredPlanned.amount, coveredPlanned.currency)}
-                  </span>
-                </div>
-              </div>
-            );
-          }
-
-          return (
-            <div key={`${gap.provider}-${gap.currency}-${i}`} className="space-y-2">
-              {forecastAction && forecastAction.amountP50 > 0 && (
-                <TransferActionCard action={forecastAction} plannedTransfers={plannedTransfers} />
-              )}
-              {!forecastAction && fxSwaps.length === 0 && (
-                <div className="rounded-lg border-2 border-[hsl(var(--status-danger)/0.5)] bg-card p-3">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <ProviderBadge provider="NEO" />
-                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-                    <ProviderBadge provider={gap.provider} />
-                    <span className="font-mono-numbers text-sm font-semibold">
-                      {fmt(gap.shortfall, gap.currency)}
-                    </span>
-                    <Badge className="text-xs bg-[hsl(var(--status-danger))] text-white">shortfall</Badge>
-                  </div>
-                </div>
-              )}
-              {fxSwaps.map((swap, j) => (
-                <FxSwapCard key={`swap-${j}`} swap={swap} />
-              ))}
-            </div>
-          );
-        })}
+        {todayActions.map(({ action, fxSwaps }, i) => (
+          <div key={`${action.toProvider}-${action.currency}-${i}`} className="space-y-2">
+            {action.amountP50 > 0 && (
+              <TransferActionCard action={action} plannedTransfers={plannedTransfers} />
+            )}
+            {fxSwaps.map((swap, j) => (
+              <FxSwapCard key={`swap-${j}`} swap={swap} />
+            ))}
+          </div>
+        ))}
       </div>
 
       {/* Plan a transfer */}
