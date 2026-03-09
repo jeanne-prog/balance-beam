@@ -129,6 +129,14 @@ export function useTransactions(statusFilter?: string) {
       hasBlockingIssue: parseBool(r.has_blocking_issue),
       pendingApprovalAtDate: strOrNull(r.pending_approval_at_date ?? r.submitted_for_approval_at),
       approvedAtDate: strOrNull(r.approved_at),
+      senderId: strOrNull(r.sender_id),
+      senderBusinessNumber: strOrNull(r.sender_business_number),
+      senderAddressLine1: strOrNull(r.sender_address_line_1),
+      senderAddressCity: strOrNull(r.sender_address_city),
+      senderAddressState: strOrNull(r.sender_address_state),
+      receiverAddressLine1: strOrNull(r.receiver_address_line_1),
+      receiverAddressCity: strOrNull(r.receiver_address_city),
+      receiverAddressState: strOrNull(r.receiver_address_state),
     }));
     if (statusFilter) return all.filter((t) => t.status === statusFilter);
     return all;

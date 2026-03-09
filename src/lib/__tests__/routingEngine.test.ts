@@ -38,6 +38,14 @@ function makeTx(overrides: Partial<Transaction> = {}): Transaction {
     hasBlockingIssue: false,
     pendingApprovalAtDate: null,
     approvedAtDate: null,
+    senderId: null,
+    senderBusinessNumber: null,
+    senderAddressLine1: null,
+    senderAddressCity: null,
+    senderAddressState: null,
+    receiverAddressLine1: null,
+    receiverAddressCity: null,
+    receiverAddressState: null,
     ...overrides,
   };
 }

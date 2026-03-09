@@ -1,9 +1,9 @@
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { useRoutingEngine } from "@/hooks/useRoutingEngine";
 import { useRoutingDecisions, useAppendRoutingDecision } from "@/hooks/useRoutingDecisions";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useAllocation } from "@/contexts/AllocationContext";
-import { AlertCircle, Clock, Download } from "lucide-react";
+import { AlertCircle, Clock, Download, Loader2 } from "lucide-react";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { BalanceCards } from "@/components/dashboard/BalanceCards";
 import { PayoutsTable } from "@/components/dashboard/PayoutsTable";
@@ -13,7 +13,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { getCorpayTransactions, downloadCorpayCsv } from "@/lib/corpayExport";
+import { getCorpayTransactions, downloadCorpayCsv, type SwiftLookupResult } from "@/lib/corpayExport";
+import { supabase } from "@/integrations/supabase/client";
 
 function formatCurrency(amount: number, currency: string) {
   try {
@@ -100,16 +101,56 @@ const Dashboard = () => {
     [heldBackPayouts, suggestions, filters],
   );
 
-  // Corpay export
+  // Corpay export with SWIFT lookup
+  const swiftCacheRef = useRef<Record<string, SwiftLookupResult>>({});
+  const [isExporting, setIsExporting] = useState(false);
+
   const corpayTxns = useMemo(
     () => getCorpayTransactions(pendingPayouts, suggestions, overrides, operatorHeldIds),
     [pendingPayouts, suggestions, overrides, operatorHeldIds],
   );
-  const handleExportCorpay = useCallback(() => {
-    if (corpayTxns.length === 0) return;
-    downloadCorpayCsv(corpayTxns);
-    toast({ title: "Corpay CSV exported", description: `${corpayTxns.length} payment${corpayTxns.length !== 1 ? "s" : ""} exported.` });
-  }, [corpayTxns]);
+
+  const handleExportCorpay = useCallback(async () => {
+    if (corpayTxns.length === 0 || isExporting) return;
+    setIsExporting(true);
+
+    try {
+      // Collect unique SWIFT codes not yet cached
+      const uncachedCodes = [
+        ...new Set(
+          corpayTxns
+            .map((ct) => ct.tx.receiverSwiftCode)
+            .filter((c): c is string => !!c && !swiftCacheRef.current[c])
+        ),
+      ];
+
+      if (uncachedCodes.length > 0) {
+        // Batch into groups of 20
+        for (let i = 0; i < uncachedCodes.length; i += 20) {
+          const batch = uncachedCodes.slice(i, i + 20);
+          try {
+            const { data, error } = await supabase.functions.invoke("swift-lookup", {
+              body: { codes: batch },
+            });
+            if (!error && data?.results) {
+              for (const [code, result] of Object.entries(data.results)) {
+                if (result) {
+                  swiftCacheRef.current[code] = result as SwiftLookupResult;
+                }
+              }
+            }
+          } catch (e) {
+            console.warn("SWIFT lookup batch failed:", e);
+          }
+        }
+      }
+
+      downloadCorpayCsv(corpayTxns, swiftCacheRef.current);
+      toast({ title: "Corpay CSV exported", description: `${corpayTxns.length} payment${corpayTxns.length !== 1 ? "s" : ""} exported.` });
+    } finally {
+      setIsExporting(false);
+    }
+  }, [corpayTxns, isExporting]);
 
   // Override-aware allocated map for funding gap display (accounts for operator holds & manual overrides)
   const allocated = useMemo(() => {
@@ -176,9 +217,13 @@ const Dashboard = () => {
           </p>
         </div>
         {corpayTxns.length > 0 && (
-          <Button variant="outline" size="sm" onClick={handleExportCorpay} className="shrink-0">
-            <Download className="h-4 w-4 mr-1.5" />
-            Export Corpay CSV
+          <Button variant="outline" size="sm" onClick={handleExportCorpay} disabled={isExporting} className="shrink-0">
+            {isExporting ? (
+              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-1.5" />
+            )}
+            {isExporting ? "Fetching bank details..." : "Export Corpay CSV"}
             <Badge variant="secondary" className="ml-1.5 text-xs px-1.5 py-0">
               {corpayTxns.length}
             </Badge>
