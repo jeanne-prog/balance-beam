@@ -3,14 +3,17 @@ import { useRoutingEngine } from "@/hooks/useRoutingEngine";
 import { useRoutingDecisions, useAppendRoutingDecision } from "@/hooks/useRoutingDecisions";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useAllocation } from "@/contexts/AllocationContext";
-import { AlertCircle, Clock } from "lucide-react";
+import { AlertCircle, Clock, Download } from "lucide-react";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { BalanceCards } from "@/components/dashboard/BalanceCards";
 import { PayoutsTable } from "@/components/dashboard/PayoutsTable";
 import { PayoutsFilterBar, applyPayoutsFilters, type PayoutsFilters } from "@/components/dashboard/PayoutsFilterBar";
 import { FlowTargetCards } from "@/components/dashboard/FlowTargetCards";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
+import { getCorpayTransactions, downloadCorpayCsv } from "@/lib/corpayExport";
 
 function formatCurrency(amount: number, currency: string) {
   try {
@@ -97,6 +100,17 @@ const Dashboard = () => {
     [heldBackPayouts, suggestions, filters],
   );
 
+  // Corpay export
+  const corpayTxns = useMemo(
+    () => getCorpayTransactions(pendingPayouts, suggestions, overrides, operatorHeldIds),
+    [pendingPayouts, suggestions, overrides, operatorHeldIds],
+  );
+  const handleExportCorpay = useCallback(() => {
+    if (corpayTxns.length === 0) return;
+    downloadCorpayCsv(corpayTxns);
+    toast({ title: "Corpay CSV exported", description: `${corpayTxns.length} payment${corpayTxns.length !== 1 ? "s" : ""} exported.` });
+  }, [corpayTxns]);
+
   // Override-aware allocated map for funding gap display (accounts for operator holds & manual overrides)
   const allocated = useMemo(() => {
     const map = new Map<string, number>();
@@ -154,11 +168,22 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Pending payouts with routing suggestions — click a row to see ranked providers.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold">Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Pending payouts with routing suggestions — click a row to see ranked providers.
+          </p>
+        </div>
+        {corpayTxns.length > 0 && (
+          <Button variant="outline" size="sm" onClick={handleExportCorpay} className="shrink-0">
+            <Download className="h-4 w-4 mr-1.5" />
+            Export Corpay CSV
+            <Badge variant="secondary" className="ml-1.5 text-xs px-1.5 py-0">
+              {corpayTxns.length}
+            </Badge>
+          </Button>
+        )}
       </div>
 
       <DashboardStats transactions={pendingPayouts} suggestions={suggestions} isLoading={isLoading} fundingGaps={fundingGaps} />
