@@ -217,9 +217,13 @@ const Dashboard = () => {
           </p>
         </div>
         {corpayTxns.length > 0 && (
-          <Button variant="outline" size="sm" onClick={handleExportCorpay} className="shrink-0">
-            <Download className="h-4 w-4 mr-1.5" />
-            Export Corpay CSV
+          <Button variant="outline" size="sm" onClick={handleExportCorpay} disabled={isExporting} className="shrink-0">
+            {isExporting ? (
+              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-1.5" />
+            )}
+            {isExporting ? "Fetching bank details..." : "Export Corpay CSV"}
             <Badge variant="secondary" className="ml-1.5 text-xs px-1.5 py-0">
               {corpayTxns.length}
             </Badge>
