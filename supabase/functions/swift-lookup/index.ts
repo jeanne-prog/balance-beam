@@ -10,6 +10,18 @@ interface SwiftResult {
   city: string;
 }
 
+/** Decode HTML entities like &#x27; &#39; &amp; etc. without DOM (Deno-safe) */
+function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
 /**
  * Parse the Wise dedicated SWIFT code page at /gb/swift-codes/{CODE}XXX.
  * The page renders structured spans:
@@ -22,46 +34,47 @@ function parseSwiftPage(html: string): SwiftResult | null {
   let city = "";
 
   // Strategy 1: Extract from the structured <p> with multiple <span> children
-  // Pattern: <p><span>BANK NAME</span>, <span>ADDRESS</span>, <span>CITY</span>, <span>COUNTRY</span></p>
   const spanGroupMatch = html.match(
     /<p>\s*<span>([^<]+)<\/span>\s*,\s*<span>([^<]+)<\/span>\s*,\s*<span>([^<]+)<\/span>/i
   );
   if (spanGroupMatch) {
-    bankName = spanGroupMatch[1].trim();
-    address = spanGroupMatch[2].trim();
-    city = spanGroupMatch[3].trim();
+    bankName = decodeHtmlEntities(spanGroupMatch[1].trim());
+    address = decodeHtmlEntities(spanGroupMatch[2].trim());
+    city = decodeHtmlEntities(spanGroupMatch[3].trim());
     return { bankName, address, city };
   }
 
   // Strategy 2: Extract from h2 "BANK NAME BIC / Swift code details"
   const h2Match = html.match(/<h2[^>]*>([^<]+)\s+BIC\s*\/?\s*Swift\s+code\s+details/i);
   if (h2Match) {
-    bankName = h2Match[1].trim();
+    bankName = decodeHtmlEntities(h2Match[1].trim());
   }
 
-  // Strategy 3: dt/dd pairs
-  const dtDdPairs = [...html.matchAll(/<dt[^>]*>([^<]*)<\/dt>\s*<dd[^>]*>([^<]*)<\/dd>/gi)];
-  for (const [, label, value] of dtDdPairs) {
-    const lbl = label.trim().toLowerCase();
+  // Strategy 3: dt/dd pairs — bank name, address, city from same structured block
+  const dtDdPairs = [...html.matchAll(/<dt[^>]*>([\s\S]*?)<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/gi)];
+  for (const [, labelRaw, valueRaw] of dtDdPairs) {
+    const lbl = labelRaw.replace(/<[^>]*>/g, "").trim().toLowerCase();
+    const val = decodeHtmlEntities(valueRaw.replace(/<[^>]*>/g, "").trim());
     if (lbl.includes("bank") && lbl.includes("name") && !bankName) {
-      bankName = value.trim();
+      bankName = val;
     } else if (lbl.includes("address") && !address) {
-      address = value.trim();
+      address = val;
     } else if (lbl.includes("city") && !city) {
-      city = value.trim();
+      city = val;
     }
   }
 
   // Strategy 4: table rows
-  const trPairs = [...html.matchAll(/<t[hd][^>]*>([^<]*)<\/t[hd]>\s*<td[^>]*>([^<]*)<\/td>/gi)];
-  for (const [, label, value] of trPairs) {
-    const lbl = label.trim().toLowerCase();
+  const trPairs = [...html.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>\s*<td[^>]*>([\s\S]*?)<\/td>/gi)];
+  for (const [, labelRaw, valueRaw] of trPairs) {
+    const lbl = labelRaw.replace(/<[^>]*>/g, "").trim().toLowerCase();
+    const val = decodeHtmlEntities(valueRaw.replace(/<[^>]*>/g, "").trim());
     if ((lbl.includes("bank") || lbl.includes("institution")) && !bankName) {
-      bankName = value.trim();
+      bankName = val;
     } else if (lbl.includes("address") && !lbl.includes("line 2") && !address) {
-      address = value.trim();
+      address = val;
     } else if (lbl.includes("city") && !city) {
-      city = value.trim();
+      city = val;
     }
   }
 
