@@ -680,48 +680,50 @@ export function computeLiquidityForecast(
       const FX_SELL_ORDER = ["EUR", "USD", "GBP"];
       for (const action of actions) {
         if (action.horizon !== "today" || !action.neoInsufficient) continue;
-        const shortfallAmount = Math.max(0, (action.amountP50 > 0 ? (allocatedMap.get(`${action.toProvider}|${currency}`) ?? 0) - (balanceMap.get(`${action.toProvider}|${currency}`) ?? 0) : 0) - action.amountP50);
-        if (shortfallAmount <= 0) {
-          // Compute the actual uncovered shortfall
-          const totalShortfall = allocatedMap.get(`${action.toProvider}|${currency}`) ?? 0;
-          const provBal = balanceMap.get(`${action.toProvider}|${currency}`) ?? 0;
-          const uncovered = Math.max(0, totalShortfall - provBal) - action.amountP50;
-          if (uncovered <= 0) continue;
-          // Try FX swap for uncovered amount
-          for (const sellCcy of FX_SELL_ORDER) {
-            if (sellCcy === currency) continue;
-            const rateKey = `${sellCcy}|${currency}`;
-            const fxRate = fxRates.get(rateKey);
-            if (!fxRate) continue;
-            const sellAmount = uncovered / fxRate;
-            const neoBal = balanceMap.get(`NEO|${sellCcy}`) ?? 0;
-            if (neoBal < sellAmount) continue;
-            const fxCostBps = currencyRails.find(
-              cr => normalize(cr.provider) === "NEO" && normalize(cr.currency) === sellCcy
-            )?.fxCostBps ?? 0;
-            const rail = currencyRails.find(
-              cr => normalize(cr.provider) === action.toProvider && normalize(cr.currency) === currency
-            );
-            const payoutCutoffUtc = rail?.payoutCutoffUtc ?? null;
-            const minutesUntilCutoff = payoutCutoffUtc && payoutCutoffUtc !== "TBC"
-              ? computeMinutesUntilCutoff(payoutCutoffUtc, false) : null;
-            fxSwapActions.push({
-              type: "fx_swap",
-              shortfallCurrency: currency,
-              shortfallProvider: action.toProvider,
-              shortfallAmount: uncovered,
-              sellCurrency: sellCcy,
-              sellProvider: "NEO",
-              sellAmount,
-              fxRate,
-              fxRateDate: fxRateDate ?? null,
-              fxCostBps,
-              urgency: action.urgency,
-              minutesUntilCutoff,
-              fundingCutoffUtc: payoutCutoffUtc,
-            });
-            break;
-          }
+
+        // Uncovered amount = full shortfall minus what Neo same-currency can cover
+        const totalShortfall = Math.max(0,
+          (allocatedMap.get(`${action.toProvider}|${action.currency}`) ?? 0) -
+          (balanceMap.get(`${action.toProvider}|${action.currency}`) ?? 0)
+        );
+        const uncovered = Math.max(0, totalShortfall - action.amountP50);
+        if (uncovered <= 0) continue;
+
+        // Try selling another currency from Neo to cover the uncovered amount
+        for (const sellCcy of FX_SELL_ORDER) {
+          if (sellCcy === action.currency) continue;
+          const rateKey = `${sellCcy}|${action.currency}`;
+          const fxRate = fxRates.get(rateKey);
+          if (!fxRate) continue;
+          const sellAmount = uncovered / fxRate;
+          const neoBal = balanceMap.get(`NEO|${sellCcy}`) ?? 0;
+          if (neoBal < sellAmount) continue;
+          const fxCostBps = currencyRails.find(
+            cr => normalize(cr.provider) === "NEO" && normalize(cr.currency) === sellCcy
+          )?.fxCostBps ?? 0;
+          const rail = currencyRails.find(
+            cr => normalize(cr.provider) === action.toProvider && normalize(cr.currency) === action.currency
+          );
+          const payoutCutoffUtc = rail?.payoutCutoffUtc ?? null;
+          const minutesUntilCutoff = payoutCutoffUtc && payoutCutoffUtc !== "TBC"
+            ? computeMinutesUntilCutoff(payoutCutoffUtc, false)
+            : null;
+          fxSwapActions.push({
+            type: "fx_swap",
+            shortfallCurrency: action.currency,
+            shortfallProvider: action.toProvider,
+            shortfallAmount: uncovered,
+            sellCurrency: sellCcy,
+            sellProvider: "NEO",
+            sellAmount,
+            fxRate,
+            fxRateDate: fxRateDate ?? null,
+            fxCostBps,
+            urgency: action.urgency,
+            minutesUntilCutoff,
+            fundingCutoffUtc: payoutCutoffUtc,
+          });
+          break;
         }
       }
     }
