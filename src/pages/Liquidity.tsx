@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useRoutingEngine } from "@/hooks/useRoutingEngine";
 import { useFxRates } from "@/hooks/useFxRates";
+import { useAllocation } from "@/contexts/AllocationContext";
 import { LiquidityForecastPanel } from "@/components/dashboard/LiquidityForecastPanel";
 import { BalanceCards } from "@/components/dashboard/BalanceCards";
 import { Card, CardContent } from "@/components/ui/card";
@@ -139,8 +140,11 @@ const Liquidity = () => {
   const {
     liquidityForecast, balances, effectiveBalances, incomingTransfers,
     routingProviders, plannedTransfers, addPlannedTransfer, removePlannedTransfer,
-    allocatedMap, isLoading,
+    isLoading,
   } = useRoutingEngine(new Set(), new Set(), fxRates, fxRateDate);
+
+  // Use Dashboard's override-aware allocation & gaps via shared context
+  const { allocated, fundingGaps } = useAllocation();
 
   const [showTomorrow, setShowTomorrow] = useState(false);
   const [showForecast, setShowForecast] = useState(false);
@@ -159,7 +163,7 @@ const Liquidity = () => {
     [liquidityForecast]
   );
 
-  const hasGaps = todayActions.length > 0;
+  const hasGaps = fundingGaps.length > 0 || todayActions.length > 0;
 
   const tomorrowActions = useMemo(() => {
     return liquidityForecast.flatMap(f => f.actions.filter(a => a.horizon === "tomorrow"));
@@ -175,9 +179,9 @@ const Liquidity = () => {
       </div>
 
       <div className="space-y-1">
-        <BalanceCards balances={effectiveBalances} routingProviders={routingProviders} allocated={allocatedMap} isLoading={isLoading} incomingTransfers={incomingTransfers} />
+        <BalanceCards balances={effectiveBalances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} incomingTransfers={incomingTransfers} />
         <p className="text-xs text-muted-foreground px-1">
-          Allocation based on system routing recommendations. Dashboard may differ if manual overrides or holds are active.
+          Allocation reflects Dashboard routing decisions (including manual overrides and holds).
         </p>
       </div>
 

@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback, useEffect } from "react";
 import { useRoutingEngine } from "@/hooks/useRoutingEngine";
 import { useRoutingDecisions, useAppendRoutingDecision } from "@/hooks/useRoutingDecisions";
 import { useAuthContext } from "@/contexts/AuthContext";
+import { useAllocation } from "@/contexts/AllocationContext";
 import { AlertCircle, Clock } from "lucide-react";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { BalanceCards } from "@/components/dashboard/BalanceCards";
@@ -136,6 +137,11 @@ const Dashboard = () => {
     }
     return gaps;
   }, [effectiveBalances, allocated]);
+
+  // Sync override-aware allocation & gaps into shared context for Liquidity page
+  const { setAllocated: setSharedAllocated, setFundingGaps: setSharedFundingGaps } = useAllocation();
+  useEffect(() => { setSharedAllocated(allocated); }, [allocated, setSharedAllocated]);
+  useEffect(() => { setSharedFundingGaps(fundingGaps); }, [fundingGaps, setSharedFundingGaps]);
 
   if (error) {
     return (
