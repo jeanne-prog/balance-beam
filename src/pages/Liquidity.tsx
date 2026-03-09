@@ -139,45 +139,27 @@ const Liquidity = () => {
   const {
     liquidityForecast, balances, effectiveBalances, incomingTransfers,
     routingProviders, plannedTransfers, addPlannedTransfer, removePlannedTransfer,
-    pendingPayouts, suggestions, allocatedMap: allocated, isLoading,
+    allocatedMap, isLoading,
   } = useRoutingEngine(new Set(), new Set(), fxRates, fxRateDate);
 
   const [showTomorrow, setShowTomorrow] = useState(false);
   const [showForecast, setShowForecast] = useState(false);
 
-  // Compute gaps: allocated > effectiveBalance (consistent with Dashboard)
-  const gaps = useMemo(() => {
-    const balMap = new Map<string, number>();
-    for (const b of effectiveBalances) {
-      const key = `${b.provider.toUpperCase()}|${b.currency.toUpperCase()}`;
-      balMap.set(key, (balMap.get(key) ?? 0) + b.currentBalance);
-    }
-    const result: { provider: string; currency: string; shortfall: number }[] = [];
-    for (const [key, allocAmt] of allocated) {
-      const bal = balMap.get(key) ?? 0;
-      const diff = allocAmt - bal;
-      if (diff > 0) {
-        const [provider, currency] = key.split("|");
-        result.push({ provider, currency, shortfall: diff });
-      }
-    }
-    return result;
-  }, [effectiveBalances, allocated]);
+  const todayActions = useMemo(() =>
+    liquidityForecast.flatMap(f =>
+      f.actions
+        .filter(a => a.horizon === "today")
+        .map(a => ({
+          action: a,
+          fxSwaps: f.fxSwapActions.filter(s =>
+            s.shortfallProvider === a.toProvider && s.shortfallCurrency === a.currency
+          )
+        }))
+    ),
+    [liquidityForecast]
+  );
 
-  const hasGaps = gaps.length > 0;
-
-  // Build todayActions from gaps, enriched with forecast metadata
-  const todayActions = useMemo(() => {
-    return gaps.map(gap => {
-      const forecastAction = liquidityForecast
-        .flatMap(f => f.actions)
-        .find(a => a.toProvider === gap.provider.toUpperCase() && a.currency === gap.currency.toUpperCase() && a.horizon === "today");
-      const fxSwaps = liquidityForecast
-        .flatMap(f => f.fxSwapActions ?? [])
-        .filter(s => s.shortfallProvider === gap.provider.toUpperCase() && s.shortfallCurrency === gap.currency.toUpperCase());
-      return { gap, forecastAction: forecastAction ?? null, fxSwaps };
-    });
-  }, [gaps, liquidityForecast]);
+  const hasGaps = todayActions.length > 0;
 
   const tomorrowActions = useMemo(() => {
     return liquidityForecast.flatMap(f => f.actions.filter(a => a.horizon === "tomorrow"));
