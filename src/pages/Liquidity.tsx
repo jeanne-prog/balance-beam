@@ -149,8 +149,28 @@ const Liquidity = () => {
   const [showTomorrow, setShowTomorrow] = useState(false);
   const [showForecast, setShowForecast] = useState(false);
 
-  const todayActions = useMemo(() =>
-    liquidityForecast.flatMap(f =>
+  // Primary: use Dashboard's override-aware funding gaps from context
+  const hasGaps = fundingGaps.length > 0;
+
+  // Enrich each funding gap with forecast metadata (transfer actions + FX swaps)
+  const gapActions = useMemo(() => {
+    const allActions = liquidityForecast.flatMap(f => f.actions);
+    const allSwaps = liquidityForecast.flatMap(f => f.fxSwapActions);
+    return fundingGaps.map(gap => {
+      const forecastAction = allActions.find(
+        a => a.toProvider === gap.provider && a.currency === gap.currency && a.horizon === "today"
+      );
+      const fxSwaps = allSwaps.filter(
+        s => s.shortfallProvider === gap.provider && s.shortfallCurrency === gap.currency
+      );
+      return { gap, forecastAction, fxSwaps };
+    });
+  }, [fundingGaps, liquidityForecast]);
+
+  // Fallback: system-recommended today actions (when Dashboard hasn't loaded yet)
+  const todayActionsFallback = useMemo(() => {
+    if (fundingGaps.length > 0) return [];
+    return liquidityForecast.flatMap(f =>
       f.actions
         .filter(a => a.horizon === "today")
         .map(a => ({
@@ -159,11 +179,10 @@ const Liquidity = () => {
             s.shortfallProvider === a.toProvider && s.shortfallCurrency === a.currency
           )
         }))
-    ),
-    [liquidityForecast]
-  );
+    );
+  }, [liquidityForecast, fundingGaps]);
 
-  const hasGaps = fundingGaps.length > 0 || todayActions.length > 0;
+  const hasAnyActions = hasGaps || todayActionsFallback.length > 0;
 
   const tomorrowActions = useMemo(() => {
     return liquidityForecast.flatMap(f => f.actions.filter(a => a.horizon === "tomorrow"));
@@ -192,15 +211,40 @@ const Liquidity = () => {
           Action needed now
         </h2>
 
-        {!hasGaps && !isLoading && (
+        {!hasAnyActions && !isLoading && (
           <div className="rounded-lg border-2 border-[hsl(var(--status-positive)/0.4)] bg-[hsl(var(--status-positive-bg))] p-4 flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-[hsl(var(--status-positive))]" />
             <span className="text-sm font-medium text-[hsl(var(--status-positive))]">All providers adequately funded</span>
           </div>
         )}
 
-        {todayActions.map(({ action, fxSwaps }, i) => (
-          <div key={`${action.toProvider}-${action.currency}-${i}`} className="space-y-2">
+        {/* Primary: render from context funding gaps */}
+        {gapActions.map(({ gap, forecastAction, fxSwaps }, i) => (
+          <div key={`${gap.provider}-${gap.currency}-${i}`} className="space-y-2">
+            {forecastAction && forecastAction.amountP50 > 0 ? (
+              <TransferActionCard action={forecastAction} plannedTransfers={plannedTransfers} />
+            ) : (
+              <div className="rounded-lg border-2 border-[hsl(var(--status-danger)/0.5)] bg-card p-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <ProviderBadge provider={gap.provider} />
+                  <span className="font-mono-numbers text-sm font-semibold">
+                    {fmt(Math.abs(gap.gap), gap.currency)}
+                  </span>
+                  <Badge variant="outline" className="text-xs border-[hsl(var(--status-danger)/0.4)] text-[hsl(var(--status-danger))]">
+                    shortfall
+                  </Badge>
+                </div>
+              </div>
+            )}
+            {fxSwaps.map((swap, j) => (
+              <FxSwapCard key={`swap-${j}`} swap={swap} />
+            ))}
+          </div>
+        ))}
+
+        {/* Fallback: system-recommended actions when context gaps are empty */}
+        {todayActionsFallback.map(({ action, fxSwaps }, i) => (
+          <div key={`fb-${action.toProvider}-${action.currency}-${i}`} className="space-y-2">
             {action.amountP50 > 0 && (
               <TransferActionCard action={action} plannedTransfers={plannedTransfers} />
             )}
