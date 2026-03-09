@@ -1,9 +1,9 @@
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { useRoutingEngine } from "@/hooks/useRoutingEngine";
 import { useRoutingDecisions, useAppendRoutingDecision } from "@/hooks/useRoutingDecisions";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useAllocation } from "@/contexts/AllocationContext";
-import { AlertCircle, Clock, Download } from "lucide-react";
+import { AlertCircle, Clock, Download, Loader2 } from "lucide-react";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { BalanceCards } from "@/components/dashboard/BalanceCards";
 import { PayoutsTable } from "@/components/dashboard/PayoutsTable";
@@ -13,7 +13,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { getCorpayTransactions, downloadCorpayCsv } from "@/lib/corpayExport";
+import { getCorpayTransactions, downloadCorpayCsv, type SwiftLookupResult } from "@/lib/corpayExport";
+import { supabase } from "@/integrations/supabase/client";
 
 function formatCurrency(amount: number, currency: string) {
   try {
