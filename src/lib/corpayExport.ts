@@ -68,6 +68,8 @@ export function cleanField(value: string | null | undefined, maxChars: number, s
   let v = (value ?? "").trim();
   if (!v) return "";
   if (stripSpecialChars) {
+    // Decompose accented characters and strip combining marks (é→e, à→a, ç→c, etc.)
+    v = v.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     v = v.replace(SPECIAL_CHARS_RE, "").replace(/\s{2,}/g, " ").trim();
   }
   if (v.length <= maxChars) return v;
