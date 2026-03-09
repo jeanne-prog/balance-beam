@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useRoutingEngine } from "@/hooks/useRoutingEngine";
 import { useFxRates } from "@/hooks/useFxRates";
+import { useAllocation } from "@/contexts/AllocationContext";
 import { LiquidityForecastPanel } from "@/components/dashboard/LiquidityForecastPanel";
 import { BalanceCards } from "@/components/dashboard/BalanceCards";
 import { Card, CardContent } from "@/components/ui/card";
