@@ -67,9 +67,9 @@ const SPECIAL_CHARS_RE = /[~!@#$%^&*()+{}|:"<>?`;']/g;
 export function cleanField(value: string | null | undefined, maxChars: number, stripSpecialChars: boolean): string {
   let v = (value ?? "").trim();
   if (!v) return "";
+  // Always decompose accented characters and strip combining marks (é→e, à→a, ç→c, etc.)
+  v = v.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   if (stripSpecialChars) {
-    // Decompose accented characters and strip combining marks (é→e, à→a, ç→c, etc.)
-    v = v.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     v = v.replace(SPECIAL_CHARS_RE, "").replace(/\s{2,}/g, " ").trim();
   }
   if (v.length <= maxChars) return v;
@@ -162,7 +162,7 @@ function buildRow(ct: CorpayTransaction, swiftCache: Record<string, SwiftLookupR
   row[4] = tx.receiverCurrency.toUpperCase();                                // Beneficiary Currency
   // 5-6: intermediary — empty
   row[7] = cleanField(swift?.bankName ?? "", 50, true);                      // Bank Name
-  row[8] = swift?.address ?? "";                                             // Bank AddressLine 1
+  row[8] = cleanField(swift?.address ?? "", 35, true);                        // Bank AddressLine 1
   // 9: Bank Address Line 2 — empty
   row[10] = swift?.city ?? "";                                               // Bank City
   // 11-12: empty columns
