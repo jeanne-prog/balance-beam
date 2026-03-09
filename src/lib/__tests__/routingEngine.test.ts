@@ -43,6 +43,7 @@ function makeTx(overrides: Partial<Transaction> = {}): Transaction {
     senderAddressLine1: null,
     senderAddressCity: null,
     senderAddressState: null,
+    receiverAccountNumber: null,
     receiverAddressLine1: null,
     receiverAddressCity: null,
     receiverAddressState: null,

@@ -68,6 +68,8 @@ export function cleanField(value: string | null | undefined, maxChars: number, s
   let v = (value ?? "").trim();
   if (!v) return "";
   if (stripSpecialChars) {
+    // Decompose accented characters and strip combining marks (é→e, à→a, ç→c, etc.)
+    v = v.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     v = v.replace(SPECIAL_CHARS_RE, "").replace(/\s{2,}/g, " ").trim();
   }
   if (v.length <= maxChars) return v;
@@ -155,7 +157,7 @@ function buildRow(ct: CorpayTransaction, swiftCache: Record<string, SwiftLookupR
   const row: string[] = new Array(52).fill("");
   row[0] = cleanField(tx.transactionId, 50, false);                          // Beneficiary Identifier
   row[1] = cleanField(tx.receiverName, 100, true);                           // Beneficiary Name
-  row[2] = stripSpaces(tx.receiverIban);                                     // Bank Account Number
+  row[2] = stripSpaces(tx.receiverAccountNumber?.trim() || tx.receiverIban);   // Bank Account Number
   row[3] = bankCountry(tx);                                                  // Bank Country
   row[4] = tx.receiverCurrency.toUpperCase();                                // Beneficiary Currency
   // 5-6: intermediary — empty
