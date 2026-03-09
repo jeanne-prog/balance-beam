@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback, useEffect } from "react";
 import { useRoutingEngine } from "@/hooks/useRoutingEngine";
 import { useRoutingDecisions, useAppendRoutingDecision } from "@/hooks/useRoutingDecisions";
 import { useAuthContext } from "@/contexts/AuthContext";
+import { useAllocation } from "@/contexts/AllocationContext";
 import { AlertCircle, Clock } from "lucide-react";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { BalanceCards } from "@/components/dashboard/BalanceCards";
