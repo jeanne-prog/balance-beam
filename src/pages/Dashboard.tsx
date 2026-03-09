@@ -100,6 +100,17 @@ const Dashboard = () => {
     [heldBackPayouts, suggestions, filters],
   );
 
+  // Corpay export
+  const corpayTxns = useMemo(
+    () => getCorpayTransactions(pendingPayouts, suggestions, overrides, operatorHeldIds),
+    [pendingPayouts, suggestions, overrides, operatorHeldIds],
+  );
+  const handleExportCorpay = useCallback(() => {
+    if (corpayTxns.length === 0) return;
+    downloadCorpayCsv(corpayTxns);
+    toast({ title: "Corpay CSV exported", description: `${corpayTxns.length} payment${corpayTxns.length !== 1 ? "s" : ""} exported.` });
+  }, [corpayTxns]);
+
   // Override-aware allocated map for funding gap display (accounts for operator holds & manual overrides)
   const allocated = useMemo(() => {
     const map = new Map<string, number>();
