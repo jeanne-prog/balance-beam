@@ -168,11 +168,22 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Pending payouts with routing suggestions — click a row to see ranked providers.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold">Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Pending payouts with routing suggestions — click a row to see ranked providers.
+          </p>
+        </div>
+        {corpayTxns.length > 0 && (
+          <Button variant="outline" size="sm" onClick={handleExportCorpay} className="shrink-0">
+            <Download className="h-4 w-4 mr-1.5" />
+            Export Corpay CSV
+            <Badge variant="secondary" className="ml-1.5 text-xs px-1.5 py-0">
+              {corpayTxns.length}
+            </Badge>
+          </Button>
+        )}
       </div>
 
       <DashboardStats transactions={pendingPayouts} suggestions={suggestions} isLoading={isLoading} fundingGaps={fundingGaps} />
