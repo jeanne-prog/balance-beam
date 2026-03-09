@@ -211,15 +211,40 @@ const Liquidity = () => {
           Action needed now
         </h2>
 
-        {!hasGaps && !isLoading && (
+        {!hasAnyActions && !isLoading && (
           <div className="rounded-lg border-2 border-[hsl(var(--status-positive)/0.4)] bg-[hsl(var(--status-positive-bg))] p-4 flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-[hsl(var(--status-positive))]" />
             <span className="text-sm font-medium text-[hsl(var(--status-positive))]">All providers adequately funded</span>
           </div>
         )}
 
-        {todayActions.map(({ action, fxSwaps }, i) => (
-          <div key={`${action.toProvider}-${action.currency}-${i}`} className="space-y-2">
+        {/* Primary: render from context funding gaps */}
+        {gapActions.map(({ gap, forecastAction, fxSwaps }, i) => (
+          <div key={`${gap.provider}-${gap.currency}-${i}`} className="space-y-2">
+            {forecastAction && forecastAction.amountP50 > 0 ? (
+              <TransferActionCard action={forecastAction} plannedTransfers={plannedTransfers} />
+            ) : (
+              <div className="rounded-lg border-2 border-[hsl(var(--status-danger)/0.5)] bg-card p-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <ProviderBadge provider={gap.provider} />
+                  <span className="font-mono-numbers text-sm font-semibold">
+                    {fmt(Math.abs(gap.gap), gap.currency)}
+                  </span>
+                  <Badge variant="outline" className="text-xs border-[hsl(var(--status-danger)/0.4)] text-[hsl(var(--status-danger))]">
+                    shortfall
+                  </Badge>
+                </div>
+              </div>
+            )}
+            {fxSwaps.map((swap, j) => (
+              <FxSwapCard key={`swap-${j}`} swap={swap} />
+            ))}
+          </div>
+        ))}
+
+        {/* Fallback: system-recommended actions when context gaps are empty */}
+        {todayActionsFallback.map(({ action, fxSwaps }, i) => (
+          <div key={`fb-${action.toProvider}-${action.currency}-${i}`} className="space-y-2">
             {action.amountP50 > 0 && (
               <TransferActionCard action={action} plannedTransfers={plannedTransfers} />
             )}
