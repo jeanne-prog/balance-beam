@@ -174,7 +174,7 @@ const Dashboard = () => {
         <FlowTargetCards targets={flowTargetProgress} isLoading={isLoading} />
       )}
       <div className="sticky top-14 z-20 -mx-6 px-6 py-3 bg-background/95 backdrop-blur-sm border-b border-border">
-        <BalanceCards balances={effectiveBalances} routingProviders={routingProviders} allocated={allocated} isLoading={isLoading} incomingTransfers={incomingTransfers} />
+        <BalanceCards balances={effectiveBalances} routingProviders={routingProviders} allocated={allocatedMap} isLoading={isLoading} incomingTransfers={incomingTransfers} />
       </div>
       
       <PayoutsFilterBar
