@@ -39,6 +39,15 @@ export interface Transaction {
   paymentInitiatedAtDate: string | null;
   paymentSentAtDate: string | null;
   hasBlockingIssue: boolean;
+  // Extra fields for Corpay CSV export
+  senderId: string | null;
+  senderBusinessNumber: string | null;
+  senderAddressLine1: string | null;
+  senderAddressCity: string | null;
+  senderAddressState: string | null;
+  receiverAddressLine1: string | null;
+  receiverAddressCity: string | null;
+  receiverAddressState: string | null;
 }
 
 // ── Balance (DB_Accounts) ─────────────────────────────────

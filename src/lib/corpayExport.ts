@@ -55,6 +55,30 @@ const HEADER = [
   "Remitter Postal Code (10)",
 ];
 
+// ── Text cleaning ──────────────────────────────────────────
+
+const SPECIAL_CHARS_RE = /[~!@#$%^&*()+{}|:"<>?`;']/g;
+
+/**
+ * Clean a field value for Corpay CSV output.
+ * - Optionally strips special characters
+ * - Truncates to maxChars at the last word boundary
+ */
+export function cleanField(value: string | null | undefined, maxChars: number, stripSpecialChars: boolean): string {
+  let v = (value ?? "").trim();
+  if (!v) return "";
+  if (stripSpecialChars) {
+    v = v.replace(SPECIAL_CHARS_RE, "").replace(/\s{2,}/g, " ").trim();
+  }
+  if (v.length <= maxChars) return v;
+  // Truncate at last word boundary
+  const truncated = v.substring(0, maxChars);
+  const lastSpace = truncated.lastIndexOf(" ");
+  return (lastSpace > 0 ? truncated.substring(0, lastSpace) : truncated).trim();
+}
+
+// ── CSV helpers ────────────────────────────────────────────
+
 function csvEscape(value: string): string {
   if (value.includes(",") || value.includes('"') || value.includes("\n")) {
     return `"${value.replace(/"/g, '""')}"`;
@@ -74,9 +98,17 @@ function bankCountry(tx: Transaction): string {
   return (tx.receiverCountry ?? "").substring(0, 2).toUpperCase();
 }
 
+// ── Types ──────────────────────────────────────────────────
+
 export interface CorpayTransaction {
   tx: Transaction;
   rail: string; // "SEPA" or "SWIFT"
+}
+
+export interface SwiftLookupResult {
+  bankName: string;
+  address: string;
+  city: string;
 }
 
 /** Get all transactions allocated to CORPAY SEPA or CORPAY SWIFT */
@@ -116,58 +148,68 @@ export function getCorpayTransactions(
   return result;
 }
 
-function buildRow(ct: CorpayTransaction): string[] {
+function buildRow(ct: CorpayTransaction, swiftCache: Record<string, SwiftLookupResult>): string[] {
   const { tx, rail } = ct;
+  const swift = tx.receiverSwiftCode ? swiftCache[tx.receiverSwiftCode] : undefined;
+
   const row: string[] = new Array(52).fill("");
-  row[0] = tx.transactionId;                          // Beneficiary Identifier
-  row[1] = tx.receiverName;                            // Beneficiary Name
-  row[2] = stripSpaces(tx.receiverIban);               // Bank Account Number
-  row[3] = bankCountry(tx);                            // Bank Country
-  row[4] = tx.receiverCurrency.toUpperCase();          // Beneficiary Currency
+  row[0] = cleanField(tx.transactionId, 50, false);                          // Beneficiary Identifier
+  row[1] = cleanField(tx.receiverName, 100, true);                           // Beneficiary Name
+  row[2] = stripSpaces(tx.receiverIban);                                     // Bank Account Number
+  row[3] = bankCountry(tx);                                                  // Bank Country
+  row[4] = tx.receiverCurrency.toUpperCase();                                // Beneficiary Currency
   // 5-6: intermediary — empty
-  // 7-10: bank details — empty
-  row[13] = tx.receiverSwiftCode ?? "";                // SWIFT Code
+  row[7] = cleanField(swift?.bankName ?? "", 50, true);                      // Bank Name
+  row[8] = swift?.address ?? "";                                             // Bank AddressLine 1
+  // 9: Bank Address Line 2 — empty
+  row[10] = swift?.city ?? "";                                               // Bank City
+  // 11-12: empty columns
+  row[13] = tx.receiverSwiftCode ?? "";                                      // SWIFT Code
   // 14: internal comments — empty
-  // 15: beneficiary address — empty (no address field on Transaction)
-  // 16-19: empty
-  row[20] = "payments@capimoney.com";                  // Beneficiary Email
+  row[15] = cleanField(tx.receiverAddressLine1, 35, true);                   // Beneficiary Address Line 1
+  // 16: Beneficiary Address Line 2 — empty
+  row[17] = cleanField(tx.receiverAddressCity, 20, true);                    // Beneficiary City
+  // 18-19: postal code, phone — empty
+  row[20] = "payments@capimoney.com";                                        // Beneficiary Email
   // 21: beneficiary reference — empty
-  row[22] = (tx.receiverCountry ?? "").substring(0, 2).toUpperCase(); // Beneficiary Country
-  // 23-24: empty
-  row[25] = rail === "SEPA" ? "E" : "W";              // Payment Method
-  row[26] = "Business";                                // Beneficiary Classification
-  row[27] = "Supplier payment";                        // Purpose Of Payment
+  row[22] = (tx.receiverCountry ?? "").substring(0, 2).toUpperCase();        // Beneficiary Country
+  row[23] = cleanField(tx.receiverAddressState, 30, true);                   // Beneficiary Province
+  // 24: routing code — empty
+  row[25] = rail === "SEPA" ? "E" : "W";                                    // Payment Method
+  row[26] = "Business";                                                      // Beneficiary Classification
+  row[27] = "Supplier payment";                                              // Purpose Of Payment
   // 28-34: regulatory fields — empty
-  row[35] = tx.receiverCurrency.toUpperCase();         // Settlement Currency
-  row[36] = tx.receiverAmount.toString();              // Payment Amount
+  row[35] = tx.receiverCurrency.toUpperCase();                               // Settlement Currency
+  row[36] = tx.receiverAmount.toString();                                    // Payment Amount
   // 37: settlement amount — empty
-  row[38] = `${tx.receiverName} - ${tx.transactionId}`; // Payment Reference
-  row[39] = "C";                                       // Settlement Account
-  row[40] = "Corporation";                             // Remitter Class
-  row[41] = tx.transactionId;                          // Remitter ID (using tx ID as sender ID proxy)
-  row[42] = tx.senderName;                             // Remitter Name
-  // 43: incorporation no — empty
+  row[38] = cleanField(`${tx.senderName} - ${tx.reference ?? ""}`, 120, false); // Payment Reference
+  row[39] = "C";                                                             // Settlement Account
+  row[40] = "Corporation";                                                   // Remitter Class
+  row[41] = tx.senderId ?? tx.transactionId;                                 // Remitter ID
+  row[42] = cleanField(tx.senderName, 100, true);                            // Remitter Name
+  row[43] = tx.senderBusinessNumber ?? "";                                   // Remitter Incorporation No
   // 44: remitter email — empty
-  row[45] = "Capi Money Canada Ltd";                   // Remitter Bank Name
-  row[46] = "CMYCCAT2";                                // Remitter Bank Code
-  // 47: remitter address — empty
-  // 48: remitter city — empty
-  row[49] = (tx.senderCountry ?? "").substring(0, 2).toUpperCase(); // Remitter Country
-  // 50-51: empty
+  row[45] = "Capi Money Canada Ltd";                                         // Remitter Bank Name
+  row[46] = "CMYCCAT2";                                                      // Remitter Bank Code
+  row[47] = cleanField(tx.senderAddressLine1, 100, true);                    // Remitter Address
+  row[48] = cleanField(tx.senderAddressCity, 50, true);                      // Remitter City
+  row[49] = (tx.senderCountry ?? "").substring(0, 2).toUpperCase();          // Remitter Country
+  row[50] = cleanField(tx.senderAddressState, 50, true);                     // Remitter Province
+  // 51: postal code — empty
   return row;
 }
 
-export function generateCorpayCsv(corpayTxns: CorpayTransaction[]): string {
+export function generateCorpayCsv(corpayTxns: CorpayTransaction[], swiftCache: Record<string, SwiftLookupResult> = {}): string {
   const lines: string[] = [];
   lines.push(HEADER.map(csvEscape).join(","));
   for (const ct of corpayTxns) {
-    lines.push(buildRow(ct).map(csvEscape).join(","));
+    lines.push(buildRow(ct, swiftCache).map(csvEscape).join(","));
   }
   return lines.join("\r\n");
 }
 
-export function downloadCorpayCsv(corpayTxns: CorpayTransaction[]): void {
-  const csv = generateCorpayCsv(corpayTxns);
+export function downloadCorpayCsv(corpayTxns: CorpayTransaction[], swiftCache: Record<string, SwiftLookupResult> = {}): void {
+  const csv = generateCorpayCsv(corpayTxns, swiftCache);
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const date = new Date().toISOString().slice(0, 10);
