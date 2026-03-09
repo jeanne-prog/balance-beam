@@ -101,16 +101,56 @@ const Dashboard = () => {
     [heldBackPayouts, suggestions, filters],
   );
 
-  // Corpay export
+  // Corpay export with SWIFT lookup
+  const swiftCacheRef = useRef<Record<string, SwiftLookupResult>>({});
+  const [isExporting, setIsExporting] = useState(false);
+
   const corpayTxns = useMemo(
     () => getCorpayTransactions(pendingPayouts, suggestions, overrides, operatorHeldIds),
     [pendingPayouts, suggestions, overrides, operatorHeldIds],
   );
-  const handleExportCorpay = useCallback(() => {
-    if (corpayTxns.length === 0) return;
-    downloadCorpayCsv(corpayTxns);
-    toast({ title: "Corpay CSV exported", description: `${corpayTxns.length} payment${corpayTxns.length !== 1 ? "s" : ""} exported.` });
-  }, [corpayTxns]);
+
+  const handleExportCorpay = useCallback(async () => {
+    if (corpayTxns.length === 0 || isExporting) return;
+    setIsExporting(true);
+
+    try {
+      // Collect unique SWIFT codes not yet cached
+      const uncachedCodes = [
+        ...new Set(
+          corpayTxns
+            .map((ct) => ct.tx.receiverSwiftCode)
+            .filter((c): c is string => !!c && !swiftCacheRef.current[c])
+        ),
+      ];
+
+      if (uncachedCodes.length > 0) {
+        // Batch into groups of 20
+        for (let i = 0; i < uncachedCodes.length; i += 20) {
+          const batch = uncachedCodes.slice(i, i + 20);
+          try {
+            const { data, error } = await supabase.functions.invoke("swift-lookup", {
+              body: { codes: batch },
+            });
+            if (!error && data?.results) {
+              for (const [code, result] of Object.entries(data.results)) {
+                if (result) {
+                  swiftCacheRef.current[code] = result as SwiftLookupResult;
+                }
+              }
+            }
+          } catch (e) {
+            console.warn("SWIFT lookup batch failed:", e);
+          }
+        }
+      }
+
+      downloadCorpayCsv(corpayTxns, swiftCacheRef.current);
+      toast({ title: "Corpay CSV exported", description: `${corpayTxns.length} payment${corpayTxns.length !== 1 ? "s" : ""} exported.` });
+    } finally {
+      setIsExporting(false);
+    }
+  }, [corpayTxns, isExporting]);
 
   // Override-aware allocated map for funding gap display (accounts for operator holds & manual overrides)
   const allocated = useMemo(() => {
