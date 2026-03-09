@@ -10,55 +10,36 @@ interface SwiftResult {
   city: string;
 }
 
+/**
+ * Parse the Wise dedicated SWIFT code page at /gb/swift-codes/{CODE}XXX.
+ * The page renders structured spans:
+ *   <p><span>BANK NAME</span>, <span>ADDRESS</span>, <span>CITY</span>, <span>COUNTRY</span></p>
+ * inside the lead section.
+ */
 function parseSwiftPage(html: string): SwiftResult | null {
-  // Look for bank name in the h1 heading — Wise typically renders:
-  // <h1>...SWIFT code for <strong>BANK NAME</strong>...</h1>
-  // or just a plain h1 with the bank name
   let bankName = "";
   let address = "";
   let city = "";
 
-  // Try extracting from structured data or headings
-  // Pattern 1: h1 with strong tag
-  const h1StrongMatch = html.match(/<h1[^>]*>.*?<strong>([^<]+)<\/strong>/is);
-  if (h1StrongMatch) {
-    bankName = h1StrongMatch[1].trim();
+  // Strategy 1: Extract from the structured <p> with multiple <span> children
+  // Pattern: <p><span>BANK NAME</span>, <span>ADDRESS</span>, <span>CITY</span>, <span>COUNTRY</span></p>
+  const spanGroupMatch = html.match(
+    /<p>\s*<span>([^<]+)<\/span>\s*,\s*<span>([^<]+)<\/span>\s*,\s*<span>([^<]+)<\/span>/i
+  );
+  if (spanGroupMatch) {
+    bankName = spanGroupMatch[1].trim();
+    address = spanGroupMatch[2].trim();
+    city = spanGroupMatch[3].trim();
+    return { bankName, address, city };
   }
 
-  // Pattern 2: fallback — look for bank name in meta or og:title
-  if (!bankName) {
-    const ogTitle = html.match(/<meta[^>]*property="og:title"[^>]*content="([^"]+)"/i);
-    if (ogTitle) {
-      // e.g. "KREDBEBB - KBC BANK NV SWIFT code"
-      const parts = ogTitle[1].split(/\s*[-–]\s*/);
-      if (parts.length >= 2) {
-        bankName = parts.slice(1).join(" - ").replace(/\s*SWIFT\s*code.*/i, "").trim();
-      }
-    }
+  // Strategy 2: Extract from h2 "BANK NAME BIC / Swift code details"
+  const h2Match = html.match(/<h2[^>]*>([^<]+)\s+BIC\s*\/?\s*Swift\s+code\s+details/i);
+  if (h2Match) {
+    bankName = h2Match[1].trim();
   }
 
-  // Pattern 3: look for bank name in h2 or h3
-  if (!bankName) {
-    const h2Match = html.match(/<h[23][^>]*>([^<]*(?:bank|credit|savings)[^<]*)<\/h[23]>/i);
-    if (h2Match) {
-      bankName = h2Match[1].trim();
-    }
-  }
-
-  // Extract address and city from the page — look for address-like content
-  // Wise shows bank details in a structured section
-  const addressSectionMatch = html.match(/(?:address|location)[^<]*<[^>]*>([^<]+)/i);
-  if (addressSectionMatch) {
-    address = addressSectionMatch[1].trim();
-  }
-
-  // Try finding city from structured content
-  const cityMatch = html.match(/(?:city|town)[^<]*<[^>]*>([^<]+)/i);
-  if (cityMatch) {
-    city = cityMatch[1].trim();
-  }
-
-  // Alternative: parse from a table or definition list that Wise uses
+  // Strategy 3: dt/dd pairs
   const dtDdPairs = [...html.matchAll(/<dt[^>]*>([^<]*)<\/dt>\s*<dd[^>]*>([^<]*)<\/dd>/gi)];
   for (const [, label, value] of dtDdPairs) {
     const lbl = label.trim().toLowerCase();
@@ -71,7 +52,7 @@ function parseSwiftPage(html: string): SwiftResult | null {
     }
   }
 
-  // Also try table rows
+  // Strategy 4: table rows
   const trPairs = [...html.matchAll(/<t[hd][^>]*>([^<]*)<\/t[hd]>\s*<td[^>]*>([^<]*)<\/td>/gi)];
   for (const [, label, value] of trPairs) {
     const lbl = label.trim().toLowerCase();
@@ -94,7 +75,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { codes } = await req.json() as { codes: string[] };
+    const { codes } = (await req.json()) as { codes: string[] };
     if (!codes || !Array.isArray(codes) || codes.length === 0) {
       return new Response(
         JSON.stringify({ error: "codes array required" }),
@@ -102,22 +83,37 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Limit to 20 codes per request to avoid abuse
     const toFetch = codes.slice(0, 20);
     const results: Record<string, SwiftResult | null> = {};
 
     await Promise.all(
       toFetch.map(async (code) => {
         try {
-          const resp = await fetch(
-            `https://wise.com/gb/swift-codes/bic-swift-code-checker?code=${encodeURIComponent(code)}`,
-            {
-              headers: {
-                "User-Agent": "Mozilla/5.0 (compatible; CapiMoney/1.0)",
-                "Accept": "text/html",
-              },
-            }
-          );
+          // Pad to 11 chars with XXX if needed (e.g. BUNQNL2A -> BUNQNL2AXXX)
+          const paddedCode = code.length <= 8 ? code + "XXX" : code;
+
+          // Try the dedicated bank page first — cleaner structure
+          const bankPageUrl = `https://wise.com/gb/swift-codes/${encodeURIComponent(paddedCode)}`;
+          let resp = await fetch(bankPageUrl, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (compatible; CapiMoney/1.0)",
+              Accept: "text/html",
+            },
+          });
+
+          // Fall back to checker page if bank page returns 404
+          if (!resp.ok) {
+            resp = await fetch(
+              `https://wise.com/gb/swift-codes/bic-swift-code-checker?code=${encodeURIComponent(code)}`,
+              {
+                headers: {
+                  "User-Agent": "Mozilla/5.0 (compatible; CapiMoney/1.0)",
+                  Accept: "text/html",
+                },
+              }
+            );
+          }
+
           if (!resp.ok) {
             console.error(`Wise fetch failed for ${code}: ${resp.status}`);
             results[code] = null;

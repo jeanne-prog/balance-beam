@@ -134,6 +134,7 @@ export function useTransactions(statusFilter?: string) {
       senderAddressLine1: strOrNull(r.sender_address_line_1),
       senderAddressCity: strOrNull(r.sender_address_city),
       senderAddressState: strOrNull(r.sender_address_state),
+      receiverAccountNumber: strOrNull(r.receiver_account_number),
       receiverAddressLine1: strOrNull(r.receiver_address_line_1),
       receiverAddressCity: strOrNull(r.receiver_address_city),
       receiverAddressState: strOrNull(r.receiver_address_state),

@@ -45,6 +45,7 @@ export interface Transaction {
   senderAddressLine1: string | null;
   senderAddressCity: string | null;
   senderAddressState: string | null;
+  receiverAccountNumber: string | null;
   receiverAddressLine1: string | null;
   receiverAddressCity: string | null;
   receiverAddressState: string | null;
