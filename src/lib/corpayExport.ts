@@ -69,6 +69,11 @@ export function cleanField(value: string | null | undefined, maxChars: number, s
   if (!v) return "";
   // Always decompose accented characters and strip combining marks (é→e, à→a, ç→c, etc.)
   v = v.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  // Strip ordinal/superscript characters that don't decompose via NFD
+  v = v.replace(/[º°ª]/g, "");
+  // Strip curly/smart quotes (single & double)
+  v = v.replace(/[\u2018\u2019\u201A\u201B]/g, "");
+  v = v.replace(/[\u201C\u201D\u201E\u201F]/g, "");
   if (stripSpecialChars) {
     v = v.replace(SPECIAL_CHARS_RE, "").replace(/\s{2,}/g, " ").trim();
   }
