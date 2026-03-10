@@ -40,10 +40,11 @@ export function useAuth() {
 
       if (!mounted) return;
 
+      // User exists but has no role (e.g. deleted) → force sign out
       if (user && !role) {
-        await supabase.auth.signOut();
-        if (!mounted) return;
         setState({ user: null, session: null, role: null, loading: false });
+        // Sign out in background without triggering another applySession
+        supabase.auth.signOut().catch(() => {});
         return;
       }
 
