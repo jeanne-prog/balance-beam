@@ -101,6 +101,30 @@ export type Database = {
         }
         Relationships: []
       }
+      swift_cache: {
+        Row: {
+          address: string
+          bank_name: string
+          city: string
+          created_at: string
+          swift_code: string
+        }
+        Insert: {
+          address?: string
+          bank_name?: string
+          city?: string
+          created_at?: string
+          swift_code: string
+        }
+        Update: {
+          address?: string
+          bank_name?: string
+          city?: string
+          created_at?: string
+          swift_code?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
