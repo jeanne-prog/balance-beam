@@ -102,6 +102,21 @@ const UserManagement = () => {
     }
   };
 
+  const handleDeleteUser = async (userId: string, email: string) => {
+    if (!confirm(`Remove ${email} from the app? This will permanently delete their account.`)) return;
+
+    const { data, error } = await supabase.functions.invoke("delete-user", {
+      body: { userId },
+    });
+
+    if (error || data?.error) {
+      toast.error("Failed to remove user: " + (data?.error || error?.message));
+    } else {
+      toast.success(`${email} has been removed`);
+      setUsers((prev) => prev.filter((u) => u.userId !== userId));
+    }
+  };
+
   const handleInvite = async () => {
     const email = inviteEmail.trim().toLowerCase();
     if (!email) return;
