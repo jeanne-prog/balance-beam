@@ -223,6 +223,34 @@ Deno.serve(async (req) => {
     const toFetch = codes.slice(0, 20);
     const results: Record<string, SwiftResult | null> = {};
 
+    // 1. Check database cache first
+    const sb = createClient(supabaseUrl, supabaseKey);
+    const { data: cached } = await sb
+      .from("swift_cache")
+      .select("swift_code, bank_name, address, city")
+      .in("swift_code", toFetch);
+
+    const uncached: string[] = [];
+    if (cached) {
+      for (const row of cached) {
+        // Only use cache if we have address (complete result)
+        if (row.address) {
+          results[row.swift_code] = {
+            bankName: row.bank_name,
+            address: row.address,
+            city: row.city,
+          };
+          console.log(`[${row.swift_code}] Cache hit: ${row.bank_name}, ${row.address}, ${row.city}`);
+        }
+      }
+    }
+    for (const code of toFetch) {
+      if (!results[code]) uncached.push(code);
+    }
+
+    console.log(`Cache: ${toFetch.length - uncached.length} hits, ${uncached.length} to fetch`);
+
+    // 2. Fetch uncached codes from Wise (sequentially to avoid rate limiting)
     const uaSimple = {
       "User-Agent": "Mozilla/5.0 (compatible; CapiMoney/1.0)",
       Accept: "text/html",
@@ -252,22 +280,32 @@ Deno.serve(async (req) => {
       };
     };
 
-    // Process codes sequentially to avoid Wise rate limiting
-    for (const code of toFetch) {
+    for (const code of uncached) {
       const paddedCode = code.length <= 8 ? code + "XXX" : code;
       const bankPageUrl = `https://wise.com/gb/swift-codes/${encodeURIComponent(paddedCode)}`;
 
       try {
-        // Try simple UA
         let result = await tryFetch(bankPageUrl, uaSimple, code);
 
-        // If address missing, try browser UA on same URL
         if (!result || !result.address) {
           console.log(`[${code}] Trying browser UA...`);
           result = merge(result, await tryFetch(bankPageUrl, uaBrowser, code));
         }
 
         results[code] = result;
+
+        // 3. Cache successful results with address
+        if (result && result.address) {
+          await sb.from("swift_cache").upsert({
+            swift_code: code,
+            bank_name: result.bankName,
+            address: result.address,
+            city: result.city,
+          }, { onConflict: "swift_code" }).then(({ error }) => {
+            if (error) console.warn(`Cache write failed for ${code}:`, error.message);
+            else console.log(`[${code}] Cached successfully`);
+          });
+        }
       } catch (e) {
         console.error(`Error fetching SWIFT ${code}:`, e);
         results[code] = null;
