@@ -309,6 +309,18 @@ const UserManagement = () => {
                               <SelectItem value="admin">Admin</SelectItem>
                             </SelectContent>
                           </Select>
+                         )}
+                      </TableCell>
+                      <TableCell>
+                        {!isSelf && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => handleDeleteUser(u.userId, u.email)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         )}
                       </TableCell>
                     </TableRow>
