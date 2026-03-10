@@ -247,15 +247,14 @@ Deno.serve(async (req) => {
             } catch { return null; }
           };
 
-          // Try browser UA on bank page first
-          let result = await tryFetchAndParse(bankPageUrl, uaBrowser);
+          // Try simple UA first (works for most banks)
+          let result = await tryFetchAndParse(bankPageUrl, uaSimple);
 
-          // If incomplete (name but no address), try simple UA
+          // If incomplete (name but no address), try browser UA
           if (!result || (!result.address && !result.city)) {
-            console.log(`[${code}] Retrying with simple UA...`);
-            const fallback = await tryFetchAndParse(bankPageUrl, uaSimple);
+            console.log(`[${code}] Retrying with browser UA...`);
+            const fallback = await tryFetchAndParse(bankPageUrl, uaBrowser);
             if (fallback) {
-              // Merge: prefer whichever has more data
               if (!result) {
                 result = fallback;
               } else {
@@ -266,7 +265,7 @@ Deno.serve(async (req) => {
             }
           }
 
-          // If still incomplete, try checker page with simple UA
+          // If still incomplete, try checker page
           if (!result || (!result.address && !result.city)) {
             console.log(`[${code}] Trying checker page...`);
             const checkerResult = await tryFetchAndParse(checkerUrl, uaSimple);
