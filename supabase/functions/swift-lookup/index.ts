@@ -223,31 +223,65 @@ Deno.serve(async (req) => {
         try {
           // Pad to 11 chars with XXX if needed (e.g. BUNQNL2A -> BUNQNL2AXXX)
           const paddedCode = code.length <= 8 ? code + "XXX" : code;
-
-          // Try the dedicated bank page first — cleaner structure
           const bankPageUrl = `https://wise.com/gb/swift-codes/${encodeURIComponent(paddedCode)}`;
-          const fetchHeaders = {
+          const checkerUrl = `https://wise.com/gb/swift-codes/bic-swift-code-checker?code=${encodeURIComponent(code)}`;
+
+          // Two UA variants — some Wise pages render differently per UA
+          const uaBrowser = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-GB,en;q=0.9",
           };
-          let resp = await fetch(bankPageUrl, { headers: fetchHeaders });
+          const uaSimple = {
+            "User-Agent": "Mozilla/5.0 (compatible; CapiMoney/1.0)",
+            Accept: "text/html",
+          };
 
-          // Fall back to checker page if bank page returns 404
-          if (!resp.ok) {
-            resp = await fetch(
-              `https://wise.com/gb/swift-codes/bic-swift-code-checker?code=${encodeURIComponent(code)}`,
-              { headers: fetchHeaders }
-            );
+          // Helper: fetch page and parse
+          const tryFetchAndParse = async (url: string, headers: Record<string, string>): Promise<SwiftResult | null> => {
+            try {
+              const resp = await fetch(url, { headers });
+              if (!resp.ok) { await resp.text(); return null; }
+              const html = await resp.text();
+              return parseSwiftPage(html, code);
+            } catch { return null; }
+          };
+
+          // Try browser UA on bank page first
+          let result = await tryFetchAndParse(bankPageUrl, uaBrowser);
+
+          // If incomplete (name but no address), try simple UA
+          if (!result || (!result.address && !result.city)) {
+            console.log(`[${code}] Retrying with simple UA...`);
+            const fallback = await tryFetchAndParse(bankPageUrl, uaSimple);
+            if (fallback) {
+              // Merge: prefer whichever has more data
+              if (!result) {
+                result = fallback;
+              } else {
+                if (!result.address && fallback.address) result.address = fallback.address;
+                if (!result.city && fallback.city) result.city = fallback.city;
+                if (!result.bankName && fallback.bankName) result.bankName = fallback.bankName;
+              }
+            }
           }
 
-          if (!resp.ok) {
-            console.error(`Wise fetch failed for ${code}: ${resp.status}`);
-            results[code] = null;
-            return;
+          // If still incomplete, try checker page with simple UA
+          if (!result || (!result.address && !result.city)) {
+            console.log(`[${code}] Trying checker page...`);
+            const checkerResult = await tryFetchAndParse(checkerUrl, uaSimple);
+            if (checkerResult) {
+              if (!result) {
+                result = checkerResult;
+              } else {
+                if (!result.address && checkerResult.address) result.address = checkerResult.address;
+                if (!result.city && checkerResult.city) result.city = checkerResult.city;
+                if (!result.bankName && checkerResult.bankName) result.bankName = checkerResult.bankName;
+              }
+            }
           }
-          const html = await resp.text();
-          results[code] = parseSwiftPage(html, code);
+
+          results[code] = result;
         } catch (e) {
           console.error(`Error fetching SWIFT ${code}:`, e);
           results[code] = null;
