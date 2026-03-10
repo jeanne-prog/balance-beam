@@ -5,12 +5,12 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import { usePrefetchSheetData } from "@/hooks/useSheetData";
 
 export function AppLayout() {
-  const { user, loading } = useAuthContext();
+  const { user, role, loading } = useAuthContext();
   // Prefetch all sheet data in a single batch request
   usePrefetchSheetData();
 
   if (loading) return null;
-  if (!user) return <Navigate to="/auth" replace />;
+  if (!user || !role) return <Navigate to="/auth" replace />;
 
   return (
     <div className="min-h-screen min-w-[1280px] bg-background">
