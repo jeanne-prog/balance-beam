@@ -207,7 +207,7 @@ Deno.serve(async (req) => {
             return;
           }
           const html = await resp.text();
-          results[code] = parseSwiftPage(html);
+          results[code] = parseSwiftPage(html, code);
         } catch (e) {
           console.error(`Error fetching SWIFT ${code}:`, e);
           results[code] = null;
