@@ -40,6 +40,7 @@ export function useRoutingEngine(
   operatorHeldIds: Set<string> = new Set(),
   fxRates?: Map<string, number>,
   fxRateDate?: string | null,
+  overrideAllocatedMap?: Map<string, number>,
 ) {
   const allTx = useTransactions();
   const balances = useBalances();
