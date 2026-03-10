@@ -209,7 +209,14 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { codes } = (await req.json()) as { codes: string[] };
+    let codes: string[];
+    if (req.method === 'GET') {
+      const url = new URL(req.url);
+      const swift = url.searchParams.get('swift');
+      codes = swift ? [swift] : [];
+    } else {
+      codes = ((await req.json()) as { codes: string[] }).codes;
+    }
     if (!codes || !Array.isArray(codes) || codes.length === 0) {
       return new Response(
         JSON.stringify({ error: "codes array required" }),
