@@ -28,7 +28,7 @@ function decodeHtmlEntities(str: string): string {
  *   <p><span>BANK NAME</span>, <span>ADDRESS</span>, <span>CITY</span>, <span>COUNTRY</span></p>
  * inside the lead section.
  */
-function parseSwiftPage(html: string): SwiftResult | null {
+function parseSwiftPage(html: string, code: string): SwiftResult | null {
   let bankName = "";
   let address = "";
   let city = "";
@@ -41,6 +41,7 @@ function parseSwiftPage(html: string): SwiftResult | null {
     bankName = decodeHtmlEntities(spanGroupMatch[1].trim());
     address = decodeHtmlEntities(spanGroupMatch[2].trim());
     city = decodeHtmlEntities(spanGroupMatch[3].trim());
+    console.log(`[${code}] Strategy 1 (span group): name=${bankName}, addr=${address}, city=${city}`);
     return { bankName, address, city };
   }
 
@@ -48,6 +49,7 @@ function parseSwiftPage(html: string): SwiftResult | null {
   const h2Match = html.match(/<h2[^>]*>([^<]+)\s+BIC\s*\/?\s*Swift\s+code\s+details/i);
   if (h2Match) {
     bankName = decodeHtmlEntities(h2Match[1].trim());
+    console.log(`[${code}] Strategy 2 (h2): name=${bankName}`);
   }
 
   // Strategy 3: dt/dd pairs — bank name, address, city from same structured block
@@ -57,10 +59,13 @@ function parseSwiftPage(html: string): SwiftResult | null {
     const val = decodeHtmlEntities(valueRaw.replace(/<[^>]*>/g, "").trim());
     if (lbl.includes("bank") && lbl.includes("name") && !bankName) {
       bankName = val;
+      console.log(`[${code}] Strategy 3 (dt/dd): name=${val}`);
     } else if (lbl.includes("address") && !address) {
       address = val;
+      console.log(`[${code}] Strategy 3 (dt/dd): addr=${val}`);
     } else if (lbl.includes("city") && !city) {
       city = val;
+      console.log(`[${code}] Strategy 3 (dt/dd): city=${val}`);
     }
   }
 
@@ -71,14 +76,83 @@ function parseSwiftPage(html: string): SwiftResult | null {
     const val = decodeHtmlEntities(valueRaw.replace(/<[^>]*>/g, "").trim());
     if ((lbl.includes("bank") || lbl.includes("institution")) && !bankName) {
       bankName = val;
+      console.log(`[${code}] Strategy 4 (table): name=${val}`);
     } else if (lbl.includes("address") && !lbl.includes("line 2") && !address) {
       address = val;
+      console.log(`[${code}] Strategy 4 (table): addr=${val}`);
     } else if (lbl.includes("city") && !city) {
       city = val;
+      console.log(`[${code}] Strategy 4 (table): city=${val}`);
+    }
+  }
+
+  // Strategy 5: Fallback — scan for JSON-LD structured data
+  if (!address || !city) {
+    const jsonLdMatch = html.match(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/i);
+    if (jsonLdMatch) {
+      try {
+        const ld = JSON.parse(jsonLdMatch[1]);
+        const addr = ld.address || ld.location?.address;
+        if (addr) {
+          if (!address && addr.streetAddress) {
+            address = decodeHtmlEntities(addr.streetAddress);
+            console.log(`[${code}] Strategy 5 (JSON-LD): addr=${address}`);
+          }
+          if (!city && addr.addressLocality) {
+            city = decodeHtmlEntities(addr.addressLocality);
+            console.log(`[${code}] Strategy 5 (JSON-LD): city=${city}`);
+          }
+          if (!bankName && ld.name) {
+            bankName = decodeHtmlEntities(ld.name);
+          }
+        }
+      } catch { /* ignore malformed JSON-LD */ }
+    }
+  }
+
+  // Strategy 6: Fallback — look for comma-separated address text near the SWIFT code
+  if (!address || !city) {
+    // Many Wise pages render: "BANK NAME, STREET ADDRESS, CITY, COUNTRY" in a single element
+    const codeUpper = code.replace(/XXX$/i, "").toUpperCase();
+    const nearCodeRe = new RegExp(
+      codeUpper + "[\\s\\S]{0,500}?([A-Z][A-Za-z0-9 .,'\\-/]+),\\s*([A-Z][A-Za-z .'\\-]+),\\s*([A-Z]{2})\\s*<",
+      "i"
+    );
+    const nearMatch = html.match(nearCodeRe);
+    if (nearMatch) {
+      if (!address) {
+        address = decodeHtmlEntities(nearMatch[1].trim());
+        console.log(`[${code}] Strategy 6 (near-code): addr=${address}`);
+      }
+      if (!city) {
+        city = decodeHtmlEntities(nearMatch[2].trim());
+        console.log(`[${code}] Strategy 6 (near-code): city=${city}`);
+      }
+    }
+  }
+
+  // Strategy 7: Fallback — look for any <li> elements containing address-like text
+  if (!address || !city) {
+    const liItems = [...html.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)];
+    for (const [, content] of liItems) {
+      const text = decodeHtmlEntities(content.replace(/<[^>]*>/g, "").trim());
+      // Skip very short or very long items
+      if (text.length < 5 || text.length > 100) continue;
+      // Address heuristic: contains a number followed by text (street pattern)
+      if (!address && /^\d+[\s,]/.test(text)) {
+        address = text;
+        console.log(`[${code}] Strategy 7 (li): addr=${address}`);
+      }
+      // City: a short all-alpha string that could be a city name, after we have address
+      if (!city && address && /^[A-Za-z\s\-']{2,30}$/.test(text)) {
+        city = text;
+        console.log(`[${code}] Strategy 7 (li): city=${city}`);
+      }
     }
   }
 
   if (!bankName && !address && !city) return null;
+  console.log(`[${code}] Final: name=${bankName}, addr=${address}, city=${city}`);
   return { bankName, address, city };
 }
 
