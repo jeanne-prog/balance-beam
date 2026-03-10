@@ -137,14 +137,14 @@ function FxSwapCard({ swap }: { swap: FxSwapAction }) {
 
 const Liquidity = () => {
   const { rates: fxRates, rateDate: fxRateDate, loading: fxLoading } = useFxRates();
+  // Use Dashboard's override-aware allocation & gaps via shared context
+  const { allocated, fundingGaps } = useAllocation();
+
   const {
     liquidityForecast, balances, effectiveBalances, incomingTransfers,
     routingProviders, plannedTransfers, addPlannedTransfer, removePlannedTransfer,
     isLoading,
-  } = useRoutingEngine(new Set(), new Set(), fxRates, fxRateDate);
-
-  // Use Dashboard's override-aware allocation & gaps via shared context
-  const { allocated, fundingGaps } = useAllocation();
+  } = useRoutingEngine(new Set(), new Set(), fxRates, fxRateDate, allocated);
 
   const [showTomorrow, setShowTomorrow] = useState(false);
   const [showForecast, setShowForecast] = useState(false);

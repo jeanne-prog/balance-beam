@@ -235,7 +235,7 @@ export function useRoutingEngine(
       routingRules.data ?? [],
       results,
       cohortRates,
-      allocatedMap,
+      overrideAllocatedMap ?? allocatedMap,
       fxRates,
       fxRateDate,
     );
@@ -250,6 +250,7 @@ export function useRoutingEngine(
     fxRateDate,
     results,
     allocatedMap,
+    overrideAllocatedMap,
   ]);
 
   return {
