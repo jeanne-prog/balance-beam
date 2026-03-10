@@ -237,12 +237,7 @@ Deno.serve(async (req) => {
           if (!resp.ok) {
             resp = await fetch(
               `https://wise.com/gb/swift-codes/bic-swift-code-checker?code=${encodeURIComponent(code)}`,
-              {
-                headers: {
-                  "User-Agent": "Mozilla/5.0 (compatible; CapiMoney/1.0)",
-                  Accept: "text/html",
-                },
-              }
+              { headers: fetchHeaders }
             );
           }
 
