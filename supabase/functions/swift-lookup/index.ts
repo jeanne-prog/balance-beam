@@ -221,7 +221,7 @@ Deno.serve(async (req) => {
     const results: Record<string, SwiftResult | null> = {};
 
     // 1. Check database cache first
-    const sb = createClient(supabaseUrl, supabaseKey);
+    const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data: cached } = await sb
       .from("swift_cache")
       .select("swift_code, bank_name, address, city")
