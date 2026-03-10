@@ -69,6 +69,31 @@ function parseSwiftPage(html: string, code: string): SwiftResult | null {
     }
   }
 
+  // Strategy 3b: generic label/value patterns in divs/spans (e.g. REVOFRP2 template)
+  // Matches patterns like: <div>Branch address</div><div>VALUE</div> or similar with spans
+  if (!address || !city) {
+    // Look for text "Branch address" or "address" label followed by a value
+    const addrLabelRe = /(?:branch\s+)?address\s*<\/(?:div|span|p|h\d|label)[^>]*>\s*(?:<[^>]*>\s*)*([A-Z0-9][^<]{2,60})/gi;
+    for (const m of html.matchAll(addrLabelRe)) {
+      const val = decodeHtmlEntities(m[1].trim());
+      if (!address && val.length >= 3 && val.length <= 60) {
+        address = val;
+        console.log(`[${code}] Strategy 3b (label/value): addr=${val}`);
+        break;
+      }
+    }
+    // Look for "City" label followed by a value
+    const cityLabelRe = /(?:^|\b)city\s*<\/(?:div|span|p|h\d|label)[^>]*>\s*(?:<[^>]*>\s*)*([A-Z][^<]{1,40})/gi;
+    for (const m of html.matchAll(cityLabelRe)) {
+      const val = decodeHtmlEntities(m[1].trim());
+      if (!city && val.length >= 2 && val.length <= 40) {
+        city = val;
+        console.log(`[${code}] Strategy 3b (label/value): city=${val}`);
+        break;
+      }
+    }
+  }
+
   // Strategy 4: table rows
   const trPairs = [...html.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>\s*<td[^>]*>([\s\S]*?)<\/td>/gi)];
   for (const [, labelRaw, valueRaw] of trPairs) {
