@@ -39,6 +39,14 @@ export function useAuth() {
       }
 
       if (!mounted) return;
+
+      if (user && !role) {
+        await supabase.auth.signOut();
+        if (!mounted) return;
+        setState({ user: null, session: null, role: null, loading: false });
+        return;
+      }
+
       setState({ user, session, role, loading: false });
     };
 
