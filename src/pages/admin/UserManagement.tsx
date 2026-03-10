@@ -102,6 +102,21 @@ const UserManagement = () => {
     }
   };
 
+  const handleDeleteUser = async (userId: string, email: string) => {
+    if (!confirm(`Remove ${email} from the app? This will permanently delete their account.`)) return;
+
+    const { data, error } = await supabase.functions.invoke("delete-user", {
+      body: { userId },
+    });
+
+    if (error || data?.error) {
+      toast.error("Failed to remove user: " + (data?.error || error?.message));
+    } else {
+      toast.success(`${email} has been removed`);
+      setUsers((prev) => prev.filter((u) => u.userId !== userId));
+    }
+  };
+
   const handleInvite = async () => {
     const email = inviteEmail.trim().toLowerCase();
     if (!email) return;
@@ -233,18 +248,19 @@ const UserManagement = () => {
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead className="w-[180px]">Change Role</TableHead>
+                <TableHead className="w-[60px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                   <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     Loading…
                   </TableCell>
                 </TableRow>
               ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     No users found
                   </TableCell>
                 </TableRow>
@@ -293,6 +309,18 @@ const UserManagement = () => {
                               <SelectItem value="admin">Admin</SelectItem>
                             </SelectContent>
                           </Select>
+                         )}
+                      </TableCell>
+                      <TableCell>
+                        {!isSelf && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => handleDeleteUser(u.userId, u.email)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         )}
                       </TableCell>
                     </TableRow>
