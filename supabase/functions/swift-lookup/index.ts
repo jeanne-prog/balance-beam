@@ -226,12 +226,12 @@ Deno.serve(async (req) => {
 
           // Try the dedicated bank page first — cleaner structure
           const bankPageUrl = `https://wise.com/gb/swift-codes/${encodeURIComponent(paddedCode)}`;
-          let resp = await fetch(bankPageUrl, {
-            headers: {
-              "User-Agent": "Mozilla/5.0 (compatible; CapiMoney/1.0)",
-              Accept: "text/html",
-            },
-          });
+          const fetchHeaders = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-GB,en;q=0.9",
+          };
+          let resp = await fetch(bankPageUrl, { headers: fetchHeaders });
 
           // Fall back to checker page if bank page returns 404
           if (!resp.ok) {
