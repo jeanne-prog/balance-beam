@@ -249,6 +249,7 @@ const UserManagement = () => {
                 <TableHead>Role</TableHead>
                 <TableHead className="w-[180px]">Change Role</TableHead>
                 <TableHead className="w-[60px]"></TableHead>
+              </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
