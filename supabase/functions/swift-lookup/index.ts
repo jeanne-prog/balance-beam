@@ -1,3 +1,5 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -66,6 +68,31 @@ function parseSwiftPage(html: string, code: string): SwiftResult | null {
     } else if (lbl.includes("city") && !city) {
       city = val;
       console.log(`[${code}] Strategy 3 (dt/dd): city=${val}`);
+    }
+  }
+
+  // Strategy 3b: generic label/value patterns in divs/spans (e.g. REVOFRP2 template)
+  // Matches patterns like: <div>Branch address</div><div>VALUE</div> or similar with spans
+  if (!address || !city) {
+    // Look for text "Branch address" or "address" label followed by a value
+    const addrLabelRe = /(?:branch\s+)?address\s*<\/(?:div|span|p|h\d|label)[^>]*>\s*(?:<[^>]*>\s*)*([A-Z0-9][^<]{2,60})/gi;
+    for (const m of html.matchAll(addrLabelRe)) {
+      const val = decodeHtmlEntities(m[1].trim());
+      if (!address && val.length >= 3 && val.length <= 60) {
+        address = val;
+        console.log(`[${code}] Strategy 3b (label/value): addr=${val}`);
+        break;
+      }
+    }
+    // Look for "City" label followed by a value
+    const cityLabelRe = /(?:^|\b)city\s*<\/(?:div|span|p|h\d|label)[^>]*>\s*(?:<[^>]*>\s*)*([A-Z][^<]{1,40})/gi;
+    for (const m of html.matchAll(cityLabelRe)) {
+      const val = decodeHtmlEntities(m[1].trim());
+      if (!city && val.length >= 2 && val.length <= 40) {
+        city = val;
+        console.log(`[${code}] Strategy 3b (label/value): city=${val}`);
+        break;
+      }
     }
   }
 
@@ -152,6 +179,26 @@ function parseSwiftPage(html: string, code: string): SwiftResult | null {
   }
 
   if (!bankName && !address && !city) return null;
+
+  // Debug: dump HTML context when address or city is missing
+  if (!address || !city) {
+    const searchTerm = bankName ? bankName.slice(0, 15) : code;
+    const idx = html.indexOf(searchTerm);
+    if (idx >= 0) {
+      const snippet = html.slice(Math.max(0, idx - 300), idx + 1200);
+      console.warn(`[${code}] MISSING addr/city. HTML snippet around "${searchTerm}":\n${snippet}`);
+    } else {
+      // Try case-insensitive search
+      const idxLower = html.toLowerCase().indexOf(searchTerm.toLowerCase());
+      if (idxLower >= 0) {
+        const snippet = html.slice(Math.max(0, idxLower - 300), idxLower + 1200);
+        console.warn(`[${code}] MISSING addr/city. HTML snippet (case-insensitive) around "${searchTerm}":\n${snippet}`);
+      } else {
+        console.warn(`[${code}] MISSING addr/city. Could not find "${searchTerm}" in HTML. Page length: ${html.length}`);
+      }
+    }
+  }
+
   console.log(`[${code}] Final: name=${bankName}, addr=${address}, city=${city}`);
   return { bankName, address, city };
 }
@@ -173,47 +220,94 @@ Deno.serve(async (req) => {
     const toFetch = codes.slice(0, 20);
     const results: Record<string, SwiftResult | null> = {};
 
-    await Promise.all(
-      toFetch.map(async (code) => {
-        try {
-          // Pad to 11 chars with XXX if needed (e.g. BUNQNL2A -> BUNQNL2AXXX)
-          const paddedCode = code.length <= 8 ? code + "XXX" : code;
+    // 1. Check database cache first
+    const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { data: cached } = await sb
+      .from("swift_cache")
+      .select("swift_code, bank_name, address, city")
+      .in("swift_code", toFetch);
 
-          // Try the dedicated bank page first — cleaner structure
-          const bankPageUrl = `https://wise.com/gb/swift-codes/${encodeURIComponent(paddedCode)}`;
-          let resp = await fetch(bankPageUrl, {
-            headers: {
-              "User-Agent": "Mozilla/5.0 (compatible; CapiMoney/1.0)",
-              Accept: "text/html",
-            },
-          });
-
-          // Fall back to checker page if bank page returns 404
-          if (!resp.ok) {
-            resp = await fetch(
-              `https://wise.com/gb/swift-codes/bic-swift-code-checker?code=${encodeURIComponent(code)}`,
-              {
-                headers: {
-                  "User-Agent": "Mozilla/5.0 (compatible; CapiMoney/1.0)",
-                  Accept: "text/html",
-                },
-              }
-            );
-          }
-
-          if (!resp.ok) {
-            console.error(`Wise fetch failed for ${code}: ${resp.status}`);
-            results[code] = null;
-            return;
-          }
-          const html = await resp.text();
-          results[code] = parseSwiftPage(html, code);
-        } catch (e) {
-          console.error(`Error fetching SWIFT ${code}:`, e);
-          results[code] = null;
+    const uncached: string[] = [];
+    if (cached) {
+      for (const row of cached) {
+        // Only use cache if we have address (complete result)
+        if (row.address) {
+          results[row.swift_code] = {
+            bankName: row.bank_name,
+            address: row.address,
+            city: row.city,
+          };
+          console.log(`[${row.swift_code}] Cache hit: ${row.bank_name}, ${row.address}, ${row.city}`);
         }
-      })
-    );
+      }
+    }
+    for (const code of toFetch) {
+      if (!results[code]) uncached.push(code);
+    }
+
+    console.log(`Cache: ${toFetch.length - uncached.length} hits, ${uncached.length} to fetch`);
+
+    // 2. Fetch uncached codes from Wise (sequentially to avoid rate limiting)
+    const uaSimple = {
+      "User-Agent": "Mozilla/5.0 (compatible; CapiMoney/1.0)",
+      Accept: "text/html",
+    };
+    const uaBrowser = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-GB,en;q=0.9",
+    };
+
+    const tryFetch = async (url: string, headers: Record<string, string>, code: string): Promise<SwiftResult | null> => {
+      try {
+        const resp = await fetch(url, { headers });
+        if (!resp.ok) { await resp.text(); return null; }
+        const html = await resp.text();
+        return parseSwiftPage(html, code);
+      } catch { return null; }
+    };
+
+    const merge = (a: SwiftResult | null, b: SwiftResult | null): SwiftResult | null => {
+      if (!a) return b;
+      if (!b) return a;
+      return {
+        bankName: a.bankName || b.bankName,
+        address: a.address || b.address,
+        city: a.city || b.city,
+      };
+    };
+
+    for (const code of uncached) {
+      const paddedCode = code.length <= 8 ? code + "XXX" : code;
+      const bankPageUrl = `https://wise.com/gb/swift-codes/${encodeURIComponent(paddedCode)}`;
+
+      try {
+        let result = await tryFetch(bankPageUrl, uaSimple, code);
+
+        if (!result || !result.address) {
+          console.log(`[${code}] Trying browser UA...`);
+          result = merge(result, await tryFetch(bankPageUrl, uaBrowser, code));
+        }
+
+        results[code] = result;
+
+        // 3. Cache successful results with address
+        if (result && result.address) {
+          await sb.from("swift_cache").upsert({
+            swift_code: code,
+            bank_name: result.bankName,
+            address: result.address,
+            city: result.city,
+          }, { onConflict: "swift_code" }).then(({ error }) => {
+            if (error) console.warn(`Cache write failed for ${code}:`, error.message);
+            else console.log(`[${code}] Cached successfully`);
+          });
+        }
+      } catch (e) {
+        console.error(`Error fetching SWIFT ${code}:`, e);
+        results[code] = null;
+      }
+    }
 
     return new Response(JSON.stringify({ results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
