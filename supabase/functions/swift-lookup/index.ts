@@ -218,75 +218,87 @@ Deno.serve(async (req) => {
     const toFetch = codes.slice(0, 20);
     const results: Record<string, SwiftResult | null> = {};
 
-    await Promise.all(
-      toFetch.map(async (code) => {
-        try {
-          // Pad to 11 chars with XXX if needed (e.g. BUNQNL2A -> BUNQNL2AXXX)
-          const paddedCode = code.length <= 8 ? code + "XXX" : code;
-          const bankPageUrl = `https://wise.com/gb/swift-codes/${encodeURIComponent(paddedCode)}`;
-          const checkerUrl = `https://wise.com/gb/swift-codes/bic-swift-code-checker?code=${encodeURIComponent(code)}`;
+    // Two UA variants — some Wise pages render differently per UA
+    const uaBrowser = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-GB,en;q=0.9",
+    };
+    const uaSimple = {
+      "User-Agent": "Mozilla/5.0 (compatible; CapiMoney/1.0)",
+      Accept: "text/html",
+    };
 
-          // Two UA variants — some Wise pages render differently per UA
-          const uaBrowser = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-GB,en;q=0.9",
-          };
-          const uaSimple = {
-            "User-Agent": "Mozilla/5.0 (compatible; CapiMoney/1.0)",
-            Accept: "text/html",
-          };
+    // Helper: fetch page and parse
+    const tryFetchAndParse = async (url: string, headers: Record<string, string>, code: string): Promise<SwiftResult | null> => {
+      try {
+        const resp = await fetch(url, { headers });
+        if (!resp.ok) { await resp.text(); return null; }
+        const html = await resp.text();
+        return parseSwiftPage(html, code);
+      } catch { return null; }
+    };
 
-          // Helper: fetch page and parse
-          const tryFetchAndParse = async (url: string, headers: Record<string, string>): Promise<SwiftResult | null> => {
-            try {
-              const resp = await fetch(url, { headers });
-              if (!resp.ok) { await resp.text(); return null; }
-              const html = await resp.text();
-              return parseSwiftPage(html, code);
-            } catch { return null; }
-          };
+    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-          // Try simple UA first (works for most banks)
-          let result = await tryFetchAndParse(bankPageUrl, uaSimple);
+    // Process a single code with retry logic
+    const processCode = async (code: string) => {
+      const paddedCode = code.length <= 8 ? code + "XXX" : code;
+      const bankPageUrl = `https://wise.com/gb/swift-codes/${encodeURIComponent(paddedCode)}`;
+      const checkerUrl = `https://wise.com/gb/swift-codes/bic-swift-code-checker?code=${encodeURIComponent(code)}`;
 
-          // If incomplete (name but no address), try browser UA
-          if (!result || (!result.address && !result.city)) {
-            console.log(`[${code}] Retrying with browser UA...`);
-            const fallback = await tryFetchAndParse(bankPageUrl, uaBrowser);
-            if (fallback) {
-              if (!result) {
-                result = fallback;
-              } else {
-                if (!result.address && fallback.address) result.address = fallback.address;
-                if (!result.city && fallback.city) result.city = fallback.city;
-                if (!result.bankName && fallback.bankName) result.bankName = fallback.bankName;
-              }
+      try {
+        // Try simple UA first (works for most banks)
+        let result = await tryFetchAndParse(bankPageUrl, uaSimple, code);
+
+        // If incomplete, try browser UA
+        if (!result || (!result.address && !result.city)) {
+          console.log(`[${code}] Retrying with browser UA...`);
+          await delay(300);
+          const fallback = await tryFetchAndParse(bankPageUrl, uaBrowser, code);
+          if (fallback) {
+            if (!result) {
+              result = fallback;
+            } else {
+              if (!result.address && fallback.address) result.address = fallback.address;
+              if (!result.city && fallback.city) result.city = fallback.city;
+              if (!result.bankName && fallback.bankName) result.bankName = fallback.bankName;
             }
           }
-
-          // If still incomplete, try checker page
-          if (!result || (!result.address && !result.city)) {
-            console.log(`[${code}] Trying checker page...`);
-            const checkerResult = await tryFetchAndParse(checkerUrl, uaSimple);
-            if (checkerResult) {
-              if (!result) {
-                result = checkerResult;
-              } else {
-                if (!result.address && checkerResult.address) result.address = checkerResult.address;
-                if (!result.city && checkerResult.city) result.city = checkerResult.city;
-                if (!result.bankName && checkerResult.bankName) result.bankName = checkerResult.bankName;
-              }
-            }
-          }
-
-          results[code] = result;
-        } catch (e) {
-          console.error(`Error fetching SWIFT ${code}:`, e);
-          results[code] = null;
         }
-      })
-    );
+
+        // If still incomplete, try checker page
+        if (!result || (!result.address && !result.city)) {
+          console.log(`[${code}] Trying checker page...`);
+          await delay(300);
+          const checkerResult = await tryFetchAndParse(checkerUrl, uaSimple, code);
+          if (checkerResult) {
+            if (!result) {
+              result = checkerResult;
+            } else {
+              if (!result.address && checkerResult.address) result.address = checkerResult.address;
+              if (!result.city && checkerResult.city) result.city = checkerResult.city;
+              if (!result.bankName && checkerResult.bankName) result.bankName = checkerResult.bankName;
+            }
+          }
+        }
+
+        results[code] = result;
+      } catch (e) {
+        console.error(`Error fetching SWIFT ${code}:`, e);
+        results[code] = null;
+      }
+    };
+
+    // Process in batches of 3 with 500ms delay between batches to avoid rate limiting
+    const BATCH_SIZE = 3;
+    for (let i = 0; i < toFetch.length; i += BATCH_SIZE) {
+      const batch = toFetch.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(processCode));
+      if (i + BATCH_SIZE < toFetch.length) {
+        await delay(500);
+      }
+    }
 
     return new Response(JSON.stringify({ results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
