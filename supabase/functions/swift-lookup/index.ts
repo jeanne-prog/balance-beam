@@ -152,6 +152,26 @@ function parseSwiftPage(html: string, code: string): SwiftResult | null {
   }
 
   if (!bankName && !address && !city) return null;
+
+  // Debug: dump HTML context when address or city is missing
+  if (!address || !city) {
+    const searchTerm = bankName ? bankName.slice(0, 15) : code;
+    const idx = html.indexOf(searchTerm);
+    if (idx >= 0) {
+      const snippet = html.slice(Math.max(0, idx - 300), idx + 1200);
+      console.warn(`[${code}] MISSING addr/city. HTML snippet around "${searchTerm}":\n${snippet}`);
+    } else {
+      // Try case-insensitive search
+      const idxLower = html.toLowerCase().indexOf(searchTerm.toLowerCase());
+      if (idxLower >= 0) {
+        const snippet = html.slice(Math.max(0, idxLower - 300), idxLower + 1200);
+        console.warn(`[${code}] MISSING addr/city. HTML snippet (case-insensitive) around "${searchTerm}":\n${snippet}`);
+      } else {
+        console.warn(`[${code}] MISSING addr/city. Could not find "${searchTerm}" in HTML. Page length: ${html.length}`);
+      }
+    }
+  }
+
   console.log(`[${code}] Final: name=${bankName}, addr=${address}, city=${city}`);
   return { bankName, address, city };
 }
